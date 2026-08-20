@@ -9,12 +9,14 @@
 		CardHeader,
 		EmptyState,
 		StatGrid,
+		Switch,
 		type BadgeVariant
 	} from '@chienleng/stratum-ui/ui';
 	import { SearchInput, Select, type SelectOption } from '@chienleng/stratum-ui/forms';
 	import type { Lifecycle, ProjectSnapshot } from '$lib/workspace/types';
 
 	type MetricFilter = 'registered' | 'active' | 'dirty' | 'standardized' | 'missing';
+	type ProjectView = 'grouped' | 'updated';
 
 	import type { WorkspaceSnapshot } from '$lib/workspace/types';
 
@@ -26,6 +28,12 @@
 	let lifecycle = $state('all');
 	let group = $state('all');
 	let metric = $state<MetricFilter | null>(null);
+	let projectView = $state<ProjectView>('grouped');
+
+	const viewOptions = [
+		{ label: 'Grouped', value: 'grouped' },
+		{ label: 'Updated', value: 'updated' }
+	];
 
 	let metricOptions = $derived([
 		{ label: 'Registered', value: workspace.summary.total, filter: 'registered' },
@@ -71,6 +79,18 @@
 	let filteredGroups = $derived(
 		availableGroups.filter((name) => filteredProjects.some((project) => project.group === name))
 	);
+	let updatedProjects = $derived(
+		[...filteredProjects].sort((first, second) => {
+			const recency = commitTimestamp(second) - commitTimestamp(first);
+			return recency || first.name.localeCompare(second.name);
+		})
+	);
+
+	function commitTimestamp(project: ProjectSnapshot): number {
+		if (!project.git.lastCommitAt) return Number.NEGATIVE_INFINITY;
+		const timestamp = Date.parse(project.git.lastCommitAt);
+		return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
+	}
 
 	function relativeDate(value: string | null): string {
 		if (!value) return 'No commits';
@@ -152,6 +172,15 @@
 			variant="field"
 			onchange={(value) => (lifecycle = value)}
 		/>
+		<fieldset class="view-toggle">
+			<legend>View</legend>
+			<Switch
+				buttons={viewOptions}
+				selected={projectView}
+				size="sm"
+				onchange={(value) => (projectView = value as ProjectView)}
+			/>
+		</fieldset>
 	</div>
 
 	{#if filteredProjects.length === 0}
@@ -160,7 +189,7 @@
 			description="Try a different search or filter combination."
 			variant="card"
 		/>
-	{:else}
+	{:else if projectView === 'grouped'}
 		{#each filteredGroups as groupName (groupName)}
 			<section class="group" aria-labelledby={`group-${groupName}`}>
 				<div class="group-heading">
@@ -213,6 +242,51 @@
 				</div>
 			</section>
 		{/each}
+	{:else}
+		<section class="group" aria-labelledby="updated-projects">
+			<div class="group-heading">
+				<h2 id="updated-projects">Recently updated</h2>
+				<span>{updatedProjects.length} projects · newest first</span>
+			</div>
+			<ol class="updated-list">
+				{#each updatedProjects as project (project.id)}
+					<li>
+						<a
+							class="project-link updated-project-link"
+							href={projectBase === '/demo/projects'
+								? resolve('/demo/projects/[slug]', { slug: project.id })
+								: resolve('/projects/[slug]', { slug: project.id })}
+						>
+							<Card class="updated-project-card">
+								<CardContent class="updated-project-content">
+									<div class="updated-project-identity">
+										<div class="project-top">
+											<Badge variant={lifecycleVariant(project.lifecycle)}
+												>{project.lifecycle}</Badge
+											>
+											{#if project.git.dirtyFiles > 0}
+												<Badge variant="danger">{project.git.dirtyFiles} changed</Badge>
+											{/if}
+										</div>
+										<h3>{project.name}</h3>
+										<span class="document-path">{project.path}</span>
+									</div>
+									<p class="updated-project-summary">{project.summary}</p>
+									<div class="updated-project-activity">
+										<span>Last commit</span>
+										<strong>{relativeDate(project.git.lastCommitAt)}</strong>
+										<span
+											>{project.git.branch ??
+												(project.git.isRepository ? 'Detached' : 'No Git')}</span
+										>
+									</div>
+								</CardContent>
+							</Card>
+						</a>
+					</li>
+				{/each}
+			</ol>
+		</section>
 	{/if}
 
 	<p class="path-note">
