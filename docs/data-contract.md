@@ -20,6 +20,11 @@ cadence-workspace/
     └── skills/
 ```
 
+The visible `projects/` tree is durable data, not generated cache. Commit it to the private data
+repository so people and their chosen tools can inspect its history. The `workspace/` directory
+versions workspace-level guides and reusable skills; expose them at the real workspace root using a
+deliberate symlink or copy so compatible agents can discover them.
+
 `cadence.config.json` contains schema version `1`, a display `name`, and `workspaceRoot`. Relative
 workspace roots resolve from the data repository.
 
@@ -30,5 +35,11 @@ are `path`, `name`, `group`, `summary`, and `lifecycle`. Lifecycle is one of `ac
 The declared path must exactly match the containing path below `projects/` and must resolve inside
 the configured workspace. This deliberate redundancy catches accidental moves and unsafe paths.
 
+`STATUS.md` is optional. To participate in freshness auditing, it should contain an exact
+`Updated: YYYY-MM-DD` line; statuses older than 30 days are reported as stale. Other Markdown files
+may be organized beneath `plans/`, `decisions/`, `meetings/`, `notes/`, and `inbox/`. Cadence treats
+these as durable context and does not convert them into tasks.
+
 See [`../examples/cadence-workspace/`](../examples/cadence-workspace/) for a complete fictional
-example. Run `pnpm validate` after editing data.
+example. Adapt its paths and workspace instruction before use. Run `pnpm validate` and
+`pnpm context --audit` after editing data.

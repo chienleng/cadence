@@ -131,12 +131,14 @@ const snapshot = {
 	projects
 };
 
-const cacheDirectory = resolve(appRoot, '.workspace-cache');
+const cacheDirectory = resolve(
+	process.env.CADENCE_CACHE_ROOT ?? resolve(appRoot, '.workspace-cache')
+);
 const cachePath = resolve(cacheDirectory, 'projects.json');
 await mkdir(cacheDirectory, { recursive: true });
 const temporaryPath = `${cachePath}.${process.pid}.tmp`;
 await writeFile(temporaryPath, `${JSON.stringify(snapshot, null, 2)}\n`);
 await rename(temporaryPath, cachePath);
 console.log(
-	`Refreshed ${projects.length} projects without changing monitored repositories; cache: ${relative(appRoot, cachePath)}.`
+	`Refreshed ${projects.length} projects without changing monitored repositories; cache: ${relative(appRoot, cachePath) || '.'}.`
 );

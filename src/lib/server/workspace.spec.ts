@@ -47,6 +47,7 @@ beforeEach(async () => {
 	await write(resolve(workspaceRoot, 'apps/harbour/README.md'), '# Harbour\n\nA test project.');
 	await write(resolve(workspaceRoot, 'apps/harbour/AGENTS.md'), '# Harbour guide');
 	await write(resolve(workspaceRoot, 'apps/harbour/docs/README.md'), '# Documentation');
+	await write(resolve(workspaceRoot, 'apps/harbour/.private/context.md'), '# Private context');
 	await write(resolve(workspaceRoot, 'apps/harbour/pnpm-lock.yaml'), 'lockfileVersion: 9');
 });
 
@@ -72,6 +73,7 @@ describe('local workspace provider', () => {
 	it('loads source documentation separately from central records', async () => {
 		const detail = await getProjectDetail('apps-harbour');
 		expect(detail?.documents.map((document) => document.path)).toContain('README.md');
+		expect(detail?.documents.map((document) => document.path)).not.toContain('.private/context.md');
 		expect(detail?.records[0]?.path).toBe('projects/apps/harbour/STATUS.md');
 		expect(detail?.records[0]?.html).toContain('<h1>Harbour status</h1>');
 	});
@@ -93,21 +95,20 @@ describe('local workspace provider', () => {
 	});
 
 	it('refresh writes only Cadence cache and leaves the monitored repository unchanged', async () => {
+		const cacheRoot = resolve(fixtureRoot, 'cache');
 		await execFileAsync('git', ['init'], { cwd: resolve(workspaceRoot, 'apps/harbour') });
 		const before = await execFileAsync('git', ['status', '--porcelain=v1'], {
 			cwd: resolve(workspaceRoot, 'apps/harbour')
 		});
 		await execFileAsync('node', ['scripts/refresh.mjs', '--local-only'], {
 			cwd: process.cwd(),
-			env: { ...process.env, CADENCE_DATA_ROOT: dataRoot }
+			env: { ...process.env, CADENCE_DATA_ROOT: dataRoot, CADENCE_CACHE_ROOT: cacheRoot }
 		});
 		const after = await execFileAsync('git', ['status', '--porcelain=v1'], {
 			cwd: resolve(workspaceRoot, 'apps/harbour')
 		});
 		expect(after.stdout).toBe(before.stdout);
-		const cache = JSON.parse(
-			await readFile(resolve(process.cwd(), '.workspace-cache/projects.json'), 'utf8')
-		);
+		const cache = JSON.parse(await readFile(resolve(cacheRoot, 'projects.json'), 'utf8'));
 		expect(cache.projects).toHaveLength(1);
 	});
 });

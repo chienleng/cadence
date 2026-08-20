@@ -48,11 +48,13 @@ The local app is served at <http://cadence.localhost:7613>.
 | ---------------------------------------- | ----------------------------------------------------------------------- |
 | `pnpm dev`                               | Run the local filesystem-backed app.                                    |
 | `pnpm validate`                          | Validate the configured data repository without writing.                |
+| `pnpm context --cwd <path>`              | Resolve a project and print its status and related records.             |
+| `pnpm context --audit`                   | Audit agent discovery and status coverage across the workspace.         |
 | `pnpm refresh`                           | Refresh ignored cache data; never fetch or change project repositories. |
 | `pnpm dev:demo`                          | Run the fictional hosted experience locally.                            |
 | `pnpm build`                             | Build the local Node application.                                       |
 | `pnpm build:demo`                        | Build the data-less Cloudflare Worker demo.                             |
 | `pnpm check` / `pnpm lint` / `pnpm test` | Verify the repository.                                                  |
 
-Architecture, privacy, and the data contract are documented in [`docs/`](docs/README.md). Cadence is
-available under the [MIT licence](LICENSE).
+Command details, architecture, privacy, and the data contract are documented in
+[`docs/`](docs/README.md). Cadence is available under the [MIT licence](LICENSE).

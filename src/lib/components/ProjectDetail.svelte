@@ -9,6 +9,7 @@
 		CardTitle,
 		EmptyState,
 		PageHeader,
+		Tooltip,
 		type BadgeVariant
 	} from '@chienleng/stratum-ui/ui';
 	import type { Lifecycle, ProjectRecordKind } from '$lib/workspace/types';
@@ -222,17 +223,24 @@
 					<div class="workflow-layout">
 						<nav class="workflow-nav" aria-label="Markdown documents">
 							{#each data.documents as document (document.path)}
-								<Button
-									variant={document.path === selectedDocument.path ? 'secondary' : 'ghost'}
-									size="sm"
-									class="workflow-record-button"
-									onclick={() => (selectedDocumentPath = document.path)}
+								<Tooltip
+									text={document.path}
+									side="right"
+									delayDuration={300}
+									class="workflow-record-tooltip"
 								>
-									<span class="workflow-record-copy">
-										<span>{document.title}</span>
-										<span>{document.path}</span>
-									</span>
-								</Button>
+									<Button
+										variant={document.path === selectedDocument.path ? 'secondary' : 'ghost'}
+										size="sm"
+										class="workflow-record-button"
+										onclick={() => (selectedDocumentPath = document.path)}
+									>
+										<span class="workflow-record-copy">
+											<span>{document.title}</span>
+											<span>{document.path}</span>
+										</span>
+									</Button>
+								</Tooltip>
 							{/each}
 						</nav>
 

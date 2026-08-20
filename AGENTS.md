@@ -9,6 +9,7 @@ changes.
   repository.
 - Never write to, fetch, or otherwise mutate monitored repositories.
 - Durable Cadence data lives in the configured external data repository under visible `projects/`.
+- Keep `pnpm context` deterministic and read-only; it is the agent-facing bridge to those records.
 - Do not add an in-app AI provider. Users bring their own terminal or editor agent.
 - The hosted demo must use fictional fixtures and must not bundle filesystem, Git, or child-process
   code.

@@ -27,6 +27,11 @@ fictional provider, keeping Node inspection code out of the Worker execution pat
 | Project purpose and operation     | Source repository `README.md`, `AGENTS.md`, and `docs/` |
 | Actionable work                   | GitHub Issues                                           |
 | Working-tree and activity state   | Read-only local Git commands                            |
+| Disposable refresh snapshot       | `.workspace-cache/projects.json`                        |
 
 Path resolution rejects projects that escape the configured workspace root. Markdown reads are
 bounded, generated directories are skipped, and HTML input remains disabled.
+
+The context resolver uses the same validated data root and chooses the longest matching registered
+path for nested projects. Refresh operates separately: it reads local Git and optional GitHub state
+for registered projects and writes only the ignored Cadence cache. It never fetches Git refs.

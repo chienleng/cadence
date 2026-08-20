@@ -26,7 +26,13 @@
 					Review the proposed visible <code>cadence-workspace/projects/</code> records before allowing
 					writes.
 				</li>
-				<li>Run <code>pnpm validate</code>, then <code>pnpm dev</code>.</li>
+				<li>
+					Expose the approved workspace <code>AGENTS.md</code>, then run
+					<code>pnpm context --audit</code> to verify agent discovery.
+				</li>
+				<li>
+					Run <code>pnpm refresh --local-only</code>, then <code>pnpm dev</code>.
+				</li>
 			</ol>
 			<p>
 				Cadence never edits monitored repositories. Your agent should request explicit permission

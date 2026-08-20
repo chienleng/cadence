@@ -395,7 +395,6 @@ const SKIPPED_DOCUMENT_DIRECTORIES = new Set([
 	'.next',
 	'.nuxt',
 	'.output',
-	'.projects',
 	'.svelte-kit',
 	'.turbo',
 	'.vite',
@@ -424,7 +423,11 @@ async function findMarkdownFiles(directory: string, limit = 200): Promise<string
 		for (const entry of entries) {
 			if (paths.length >= limit) break;
 			const absolutePath = resolve(current, entry.name);
-			if (entry.isDirectory() && !SKIPPED_DOCUMENT_DIRECTORIES.has(entry.name)) {
+			if (
+				entry.isDirectory() &&
+				!entry.name.startsWith('.') &&
+				!SKIPPED_DOCUMENT_DIRECTORIES.has(entry.name)
+			) {
 				await visit(absolutePath, depth + 1);
 			} else if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')) {
 				paths.push(relative(directory, absolutePath));
