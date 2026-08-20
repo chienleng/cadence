@@ -1,0 +1,24 @@
+name: Feature
+description: Propose a user-visible capability or improvement.
+title: ''
+labels: [enhancement]
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Describe the result and who benefits.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Link relevant plans, decisions, projects, or prior work.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: State the observable conditions for completion.
+    validations:
+      required: true
