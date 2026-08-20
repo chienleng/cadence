@@ -1,6 +1,7 @@
 {
 	"$schema": "./node_modules/wrangler/config-schema.json",
 	"name": "cadence",
+	"account_id": "7797b02330b6bcb062ee6cf99d6b48e8",
 	"compatibility_date": "2026-08-20",
 	"compatibility_flags": ["nodejs_compat"],
 	"main": ".svelte-kit/cloudflare/_worker.js",
