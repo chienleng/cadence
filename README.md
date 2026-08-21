@@ -7,6 +7,11 @@ chosen coding agents can understand what exists, what changed, and what needs at
 Cadence is a repository, not an npm package or hosted account. Real workspace data never powers the
 public demo.
 
+**Recommended setup:** run the real dashboard locally and keep the separate
+`cadence-workspace` data repository private (or without a remote). A public/cloud deployment uses a
+different, filesystem-free demo build and must contain only deliberately public data. See
+[`docs/privacy.md`](docs/privacy.md) before publishing anything.
+
 ## Principles
 
 - Every project remains an independent repository.
