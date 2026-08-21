@@ -15,6 +15,7 @@ export default defineConfig({
 	plugins: [
 		sveltekit({
 			alias: {
+				'$cadence-mode': resolve(`src/lib/mode/${demoMode ? 'demo' : 'local'}.ts`),
 				'$workspace-provider': resolve(
 					`src/lib/server/${demoMode ? 'demo-workspace' : 'local-workspace'}.ts`
 				)

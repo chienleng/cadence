@@ -1,7 +1,7 @@
-import { env } from '$env/dynamic/public';
+import { demoMode } from '$cadence-mode';
 import { loadWorkspace } from '$workspace-provider';
 
 export async function load() {
-	if (env.PUBLIC_CADENCE_MODE === 'demo') return { hosted: true as const, result: null };
+	if (demoMode) return { hosted: true as const, result: null };
 	return { hosted: false as const, result: await loadWorkspace() };
 }

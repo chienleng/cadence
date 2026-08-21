@@ -1,20 +1,20 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { env } from '$env/dynamic/public';
+	import { demoMode } from '$cadence-mode';
 	import { Button } from '@chienleng/stratum-ui/ui';
 	import '@chienleng/stratum-ui/themes/neutral.css';
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
 
 	let { children } = $props();
-	let hosted = $derived(env.PUBLIC_CADENCE_MODE === 'demo');
+	const hosted = demoMode;
 </script>
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
 	<meta
 		name="description"
-		content="A local project-management control room for independent code repositories."
+		content="A private dashboard that brings all your Git projects into one clear view."
 	/>
 </svelte:head>
 
