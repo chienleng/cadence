@@ -164,6 +164,73 @@ h2 {
 	margin: 0;
 }
 
+.docs-structure-card {
+	margin: var(--su-space-12) 0 var(--su-space-4);
+}
+
+.docs-structure-card [data-slot='card-header'] > p:last-child {
+	max-width: 50rem;
+	margin: 0;
+	color: var(--su-text-muted);
+	line-height: 1.6;
+}
+
+.workspace-tree {
+	border: 1px solid var(--su-border);
+	border-radius: var(--su-radius-lg);
+	background: var(--su-surface-muted);
+	overflow: hidden;
+}
+
+.workspace-tree pre {
+	margin: 0;
+	padding: var(--su-space-5);
+	overflow-x: auto;
+}
+
+.workspace-tree pre code {
+	padding: 0;
+	border: 0;
+	background: transparent;
+	font-size: var(--su-font-size-xs);
+	line-height: 1.7;
+}
+
+.workspace-tree figcaption {
+	padding: var(--su-space-3) var(--su-space-5);
+	border-top: 1px solid var(--su-border-muted);
+	color: var(--su-text-muted);
+	font-size: var(--su-font-size-xs);
+}
+
+.structure-notes {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: var(--su-space-4);
+	padding: 0;
+	list-style: none;
+}
+
+.structure-notes li {
+	padding-left: var(--su-space-3);
+	border-left: 2px solid var(--su-data-accent-500);
+	color: var(--su-text-muted);
+	font-size: var(--su-font-size-sm);
+	line-height: 1.55;
+}
+
+.structure-notes strong {
+	display: block;
+	margin-bottom: var(--su-space-1);
+	color: var(--su-text);
+}
+
+.docs-structure-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--su-space-3);
+}
+
 .prose-stack code,
 .setup-shell code {
 	padding: 0.12em 0.35em;
@@ -707,7 +774,8 @@ button.metric-filter[data-variant='outline'][aria-pressed='true'] {
 
 	.project-grid,
 	.principle-grid,
-	.detail-grid {
+	.detail-grid,
+	.structure-notes {
 		grid-template-columns: 1fr;
 	}
 
