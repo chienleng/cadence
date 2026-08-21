@@ -6,55 +6,56 @@
 </script>
 
 <svelte:head>
-	<title>Cadence — Understand a workspace without merging it</title>
+	<title>Cadence | A private dashboard for your Git projects</title>
 </svelte:head>
 
 {#if data.hosted}
 	<main class="shell landing-shell">
 		<section class="hero landing-hero" aria-labelledby="page-title">
-			<p class="eyebrow">Local-first project intelligence</p>
-			<h1 id="page-title">Keep independent repositories. See the whole workspace.</h1>
+			<p class="eyebrow">A private dashboard for your Git projects</p>
+			<h1 id="page-title">See every project clearly. Keep the work where it belongs.</h1>
 			<p class="lede">
-				Cadence turns versioned project knowledge, local Git state, and explicit conventions into a
-				legible portfolio—without uploading your workspace or choosing an AI provider for you.
+				Cadence brings project status, plans, notes, and local Git activity into one clear view. You
+				run it on your own computer, each project stays in its existing folder, and your real
+				workspace is not uploaded.
 			</p>
 			<div class="hero-actions">
-				<Button href="/demo" variant="primary">Explore the fictional demo</Button>
-				<Button href="/docs" variant="outline">Read the setup guide</Button>
+				<Button href="/demo" variant="primary">Explore the demo</Button>
+				<Button href="/docs" variant="outline">Set up Cadence</Button>
 				<Button
 					href="https://github.com/chienleng/cadence"
 					variant="ghost"
 					target="_blank"
-					rel="external noreferrer">View source</Button
+					rel="external noreferrer">View on GitHub</Button
 				>
 			</div>
 		</section>
 
 		<section class="principle-grid" aria-label="Cadence principles">
 			<Card>
-				<CardHeader><h2>Your files stay authoritative</h2></CardHeader>
+				<CardHeader><h2>One view, without moving your work</h2></CardHeader>
 				<CardContent
 					><p>
-						Cadence reads repositories and visible workspace records; it is a lens, not another
-						issue tracker.
+						Your projects remain separate. Cadence reads their Git status and brings the useful
+						context together in one dashboard.
 					</p></CardContent
 				>
 			</Card>
 			<Card>
-				<CardHeader><h2>Bring your own AI</h2></CardHeader>
+				<CardHeader><h2>Works with the AI you already use</h2></CardHeader>
 				<CardContent
 					><p>
-						Ask the coding agent you already trust to inspect the documented contract and tailor the
-						data repository to your workspace.
+						Ask your trusted coding agent to help set up Cadence for your folders and working style.
+						There is no built-in AI account or provider to configure.
 					</p></CardContent
 				>
 			</Card>
 			<Card>
-				<CardHeader><h2>Local by design</h2></CardHeader>
+				<CardHeader><h2>Private by default</h2></CardHeader>
 				<CardContent
 					><p>
-						The hosted site uses fictional fixtures. Real filesystem and Git inspection runs only in
-						your local checkout.
+						Your real dashboard runs on your computer. Keep its <code>cadence-workspace</code> folder
+						private and backed up; the public site contains fictional demo data only.
 					</p></CardContent
 				>
 			</Card>
@@ -65,8 +66,8 @@
 {:else if data.result?.state === 'setup'}
 	<main class="shell setup-shell">
 		<EmptyState
-			title="Connect your workspace data"
-			description={`Cadence expected a data repository at ${data.result.dataRoot}. Ask your AI to read docs/setup-with-ai.md and configure this workspace.`}
+			title="Set up your Cadence workspace"
+			description={`Cadence could not find its workspace folder at ${data.result.dataRoot}. Open the setup guide, then ask your coding agent to help create or connect it.`}
 			variant="card"
 		/>
 		<div class="hero-actions"><Button href="/docs" variant="primary">Open setup guide</Button></div>
@@ -74,12 +75,12 @@
 {:else if data.result?.state === 'invalid'}
 	<main class="shell setup-shell">
 		<section class="hero">
-			<p class="eyebrow">Configuration needs attention</p>
-			<h1>Cadence found the data repository, but could not load it.</h1>
+			<p class="eyebrow">Workspace setup needs attention</p>
+			<h1>Cadence found your workspace folder, but could not read it.</h1>
 			<p class="lede">{data.result.dataRoot}</p>
 		</section>
 		<Card>
-			<CardHeader><h2>Validation errors</h2></CardHeader>
+			<CardHeader><h2>What needs fixing</h2></CardHeader>
 			<CardContent>
 				<ul class="validation-errors">
 					{#each data.result.errors as issue (issue)}<li>{issue}</li>{/each}

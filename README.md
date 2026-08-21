@@ -1,30 +1,39 @@
 # Cadence
 
-Cadence is a local-first control room for a workspace of independent repositories. It combines
-visible, versioned project records with read-only filesystem and Git inspection so people and their
-chosen coding agents can understand what exists, what changed, and what needs attention.
+Cadence is a private dashboard for all your Git projects. It brings project status, plans, notes,
+and local Git activity into one clear view, so you can quickly see what changed and what needs your
+attention.
 
-Cadence is a repository, not an npm package or hosted account. Real workspace data never powers the
-public demo.
+You run Cadence on your own computer. Each project stays in its existing folder and Git repository,
+and Cadence reads them without making changes. The [public site](https://cadence.chienleng.com) uses
+fictional demo data and never has access to your real workspace.
 
-**Recommended setup:** run the real dashboard locally and keep the separate
-`cadence-workspace` data repository private (or without a remote). A public/cloud deployment uses a
-different, filesystem-free demo build and must contain only deliberately public data. See
-[`docs/privacy.md`](docs/privacy.md) before publishing anything.
+> **Keep one folder safe:** `cadence-workspace` contains your Cadence setup and project records.
+> Keep it private and back it up with a private Git remote or a reliable backup of your computer.
+> The Cadence app can always be downloaded again from GitHub, but your workspace data cannot be
+> recreated if every copy is lost.
 
-## Principles
+## What Cadence gives you
+
+- One updated view across separate projects and Git repositories.
+- Visible status, plans, decisions, meetings, notes, and workspace guidance.
+- Read-only local Git inspection, with optional GitHub information when you request a refresh.
+- A documented structure that works with the coding agent you already trust.
+- A local dashboard by default, with a separate fictional demo for public hosting.
+
+## How your workspace stays organised
 
 - Every project remains an independent repository.
-- Project repositories own their `README.md`, `AGENTS.md`, and durable `docs/`.
-- A separate private data repository owns portfolio metadata, status, plans, decisions, meetings,
-  notes, and inboxes under a visible `projects/` directory.
-- GitHub Issues hold actionable work; Cadence does not duplicate an issue tracker.
+- Project repositories keep their code, `README.md`, `AGENTS.md`, and technical documentation.
+- The separate `cadence-workspace` repository keeps portfolio information such as status, plans,
+  decisions, meetings, and notes under a visible `projects/` folder.
+- GitHub Issues remain the place for actionable work. Cadence does not replace your issue tracker.
 - Cadence never writes to monitored repositories.
-- Users bring their own AI. Cadence provides an inspectable contract, not an in-app model.
+- You bring your own AI. Cadence does not require an in-app model or AI account.
 
-## Start
+## Set up your local dashboard
 
-Requirements: Node 22+ and Corepack-enabled pnpm.
+You will need Git, Node.js 22 or newer, and pnpm enabled through Corepack.
 
 ```bash
 git clone https://github.com/chienleng/cadence.git
@@ -33,8 +42,9 @@ pnpm install
 pnpm dev
 ```
 
-Cadence looks for `../cadence-workspace` by default. A missing repository opens a guided setup state.
-To use another location, set `CADENCE_DATA_ROOT` in `.env`.
+Cadence looks for a `cadence-workspace` folder beside the app by default. If it cannot find one, the
+dashboard shows setup guidance. To keep the folder somewhere else, set `CADENCE_DATA_ROOT` in
+`.env`.
 
 Ask your coding agent to read [`docs/setup-with-ai.md`](docs/setup-with-ai.md) and adapt the example
 data repository to your workspace. Then run:
@@ -45,21 +55,33 @@ pnpm refresh --local-only
 pnpm dev
 ```
 
-The local app is served at <http://cadence.localhost:7613>.
+Open the local dashboard at <http://cadence.localhost:7613>.
+
+## Back up and restore
+
+Treat the Cadence app as replaceable and `cadence-workspace` as your durable data:
+
+1. Keep `cadence-workspace` private unless you deliberately want its contents to be public.
+2. Back it up with a private Git remote or a reliable computer backup.
+3. If the Cadence app folder is lost, clone this repository again and run `pnpm install`.
+4. Put the restored `cadence-workspace` beside Cadence, or point `CADENCE_DATA_ROOT` to it.
+5. Run `pnpm validate`, then start the dashboard with `pnpm dev`.
+
+See [Privacy and safety](docs/privacy.md) before publishing any repository or demo.
 
 ## Commands
 
 | Command                                  | Purpose                                                                 |
 | ---------------------------------------- | ----------------------------------------------------------------------- |
-| `pnpm dev`                               | Run the local filesystem-backed app.                                    |
-| `pnpm validate`                          | Validate the configured data repository without writing.                |
-| `pnpm context --cwd <path>`              | Resolve a project and print its status and related records.             |
-| `pnpm context --audit`                   | Audit agent discovery and status coverage across the workspace.         |
-| `pnpm refresh`                           | Refresh ignored cache data; never fetch or change project repositories. |
-| `pnpm dev:demo`                          | Run the fictional hosted experience locally.                            |
-| `pnpm build`                             | Build the local Node application.                                       |
-| `pnpm build:demo`                        | Build the data-less Cloudflare Worker demo.                             |
-| `pnpm check` / `pnpm lint` / `pnpm test` | Verify the repository.                                                  |
+| `pnpm dev`                               | Start the local dashboard.                                              |
+| `pnpm validate`                          | Check the workspace data without changing it.                           |
+| `pnpm context --cwd <path>`              | Show the saved status and records for one project.                      |
+| `pnpm context --audit`                   | Check project coverage and whether coding agents can find the guidance. |
+| `pnpm refresh`                           | Update cached Git and GitHub information without changing projects.     |
+| `pnpm dev:demo`                          | Run the fictional public demo locally.                                  |
+| `pnpm build`                             | Build the local Node.js application.                                    |
+| `pnpm build:demo`                        | Build the public Cloudflare demo without local workspace access.        |
+| `pnpm check` / `pnpm lint` / `pnpm test` | Check the codebase for problems.                                        |
 
-Command details, architecture, privacy, and the data contract are documented in
-[`docs/`](docs/README.md). Cadence is available under the [MIT licence](LICENSE).
+For command details, architecture, privacy, and the data format, read the
+[full documentation](docs/README.md). Cadence is available under the [MIT licence](LICENSE).

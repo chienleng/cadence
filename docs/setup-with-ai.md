@@ -1,9 +1,9 @@
 # Set up Cadence with your own AI
 
-The recommended setup keeps both the real dashboard and its data local: run Cadence with `pnpm dev`
-and make `cadence-workspace` a private Git repository, or leave it without a remote. Publishing is a
-separate, opt-in demo workflow; it never needs access to the real data repository. Read
-[Privacy and safety](privacy.md) before choosing a public deployment.
+The recommended setup keeps your real dashboard on your computer. Run Cadence with `pnpm dev`, then
+keep `cadence-workspace` in a private Git repository or only on your computer with a reliable
+backup. Publishing is a separate, optional demo workflow; it never needs access to your real data.
+Read [Privacy and safety](privacy.md) before publishing anything.
 
 Clone Cadence beside the repositories you want to inspect, start it once, then give your coding agent
 the following request from the Cadence checkout:
@@ -19,7 +19,8 @@ the following request from the Cadence checkout:
 > it.
 
 Review the proposed inventory carefully, particularly client names and anything that should not be
-versioned. The data repository should normally remain private.
+versioned. The data repository should normally remain private and be backed up with a private Git
+remote or a reliable machine backup.
 
 After setup:
 
@@ -29,6 +30,11 @@ pnpm context --audit
 pnpm refresh --local-only
 pnpm dev
 ```
+
+`cadence-workspace` is the part you must keep safe. The Cadence app itself can be replaced. If the
+app folder is lost, download or clone Cadence from GitHub again, install it, and point it at your
+backed-up workspace folder. Reinstalling the app cannot recover plans, decisions, notes, or setup if
+every copy of `cadence-workspace` has been lost.
 
 The workspace-level `AGENTS.md` should tell every coding agent to run the context resolver before
 planning or substantial changes. If a tool does not inherit workspace-level instructions, run

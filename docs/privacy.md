@@ -2,14 +2,21 @@
 
 ## Recommended: local UI and private data
 
-Cadence's normal UI is designed to stay local. `pnpm dev` runs the filesystem-backed application on
-your machine, where it can read only the repositories registered beneath the configured workspace
-root. It is not a hosted account and does not upload the dashboard or workspace records.
+Cadence's normal dashboard is designed to stay on your computer. `pnpm dev` starts the app locally,
+where it reads only the project folders you have registered. Cadence is not a hosted account and
+does not upload your dashboard or workspace records.
 
 Keep `cadence-workspace` private by default. Either create it as a private Git repository or leave
 it without a remote. This repository may contain client names, project paths, status notes, plans,
 decisions, meetings, and other portfolio context even when the source repositories themselves are
 public.
+
+Treat `cadence-workspace` as the folder you must keep safe. Back it up with a private Git remote or a
+reliable backup of your computer. Cadence itself is replaceable: if the app folder is lost, download
+or clone it from GitHub again, install it, and point it at your backed-up `cadence-workspace`.
+
+Reinstalling Cadence does not recreate your data. If every copy of `cadence-workspace` is lost, its
+plans, decisions, notes, and workspace configuration are lost too.
 
 ```bash
 pnpm validate

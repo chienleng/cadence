@@ -3,6 +3,6 @@
 	let { data } = $props();
 </script>
 
-<svelte:head><title>Fictional workspace demo — Cadence</title></svelte:head>
+<svelte:head><title>Fictional workspace demo | Cadence</title></svelte:head>
 
 <WorkspaceDashboard workspace={data.workspace} projectBase="/demo/projects" />
