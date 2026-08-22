@@ -14,7 +14,7 @@
 	<link rel="icon" href={favicon} />
 	<meta
 		name="description"
-		content="A private dashboard that brings all your Git projects into one clear view."
+		content="A private dashboard that gives you a visual view of all your Git projects, built for working with your own AI agent."
 	/>
 </svelte:head>
 

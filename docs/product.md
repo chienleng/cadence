@@ -4,8 +4,10 @@ Cadence makes a workspace of independent repositories legible without merging th
 issue state. It answers what exists, what is active, what changed, which documentation is available,
 and where durable context lives.
 
-The dashboard is deliberately AI-provider agnostic. A user's own coding agent may inspect the public
-contract and create tailored data, but Cadence has no chat endpoint, model SDK, or prompt service.
+Cadence is built for a person working with their own AI agent: the workspace contract
+(`pnpm context`, `AGENTS.md`, the data files) is designed to be read and maintained by the agent
+the user already uses. The dashboard remains deliberately AI-provider agnostic — Cadence has no
+chat endpoint, model SDK, or prompt service.
 
 Cadence is opinionated about ownership:
 

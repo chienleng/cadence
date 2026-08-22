@@ -131,8 +131,9 @@
 		</p>
 		<h1 id="page-title">One workspace, clearly held.</h1>
 		<p class="lede">
-			A live view of independent repositories, their activity, local state, and shared project
-			knowledge. The files remain the source; this is the lens.
+			A visual view of independent repositories — their activity, local state, and shared project
+			knowledge — kept current by you and your own agent. The files remain the source; this is the
+			lens.
 		</p>
 	</section>
 

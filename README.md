@@ -1,8 +1,8 @@
 # Cadence
 
 Cadence is a private dashboard for all your Git projects. It brings project status, plans, notes,
-and local Git activity into one clear view, so you can quickly see what changed and what needs your
-attention.
+and local Git activity into one visual view, so you can quickly see what changed and what needs
+your attention — and it is designed for working alongside your own AI agent.
 
 You run Cadence on your own computer. Each project stays in its existing folder and Git repository,
 and Cadence reads them without making changes. The [public site](https://cadence.chienleng.com) uses
@@ -15,10 +15,11 @@ fictional demo data and never has access to your real workspace.
 
 ## What Cadence gives you
 
-- One updated view across separate projects and Git repositories.
+- One updated, visual view across separate projects and Git repositories.
 - Visible status, plans, decisions, meetings, notes, and workspace guidance.
 - Read-only local Git inspection, with optional GitHub information when you request a refresh.
-- A documented structure that works with the coding agent you already trust.
+- A documented structure built for the coding agent you already trust — your own agent reads it,
+  keeps it current, and answers questions about your workspace.
 - A local dashboard by default, with a separate fictional demo for public hosting.
 
 ## How your workspace stays organised

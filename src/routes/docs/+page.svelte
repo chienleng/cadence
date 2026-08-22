@@ -11,8 +11,11 @@
 		<h1>See every project in one place without uploading your workspace.</h1>
 		<p class="lede">
 			Cadence is a dashboard you run on your own computer. It reads project information from the
-			folders you choose, while a separate <code>cadence-workspace</code> folder keeps your project notes
-			and setup. Your real dashboard stays on your machine by default.
+			folders you choose and turns it into a visual view of everything you are working on — status,
+			activity, plans, and notes at a glance. A separate <code>cadence-workspace</code> folder keeps your
+			project notes and setup, and the whole structure is built for working alongside your own AI agent:
+			the agent you already use reads the same files and helps you keep them current. Your real dashboard
+			stays on your machine by default.
 		</p>
 	</section>
 	<Alert variant="success" title="Keep one folder safe: cadence-workspace.">
@@ -190,8 +193,8 @@ pnpm deploy</code
 				</li>
 			</ol>
 			<p>
-				Cadence never edits monitored repositories. Your agent should request explicit permission
-				before changing their documentation.
+				Cadence never edits monitored repositories. Your own agent does the writing — and it should
+				request explicit permission before changing their documentation.
 			</p>
 			<Button href="https://github.com/chienleng/cadence" target="_blank" rel="external noreferrer"
 				>Open the repository</Button

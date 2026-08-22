@@ -15,9 +15,9 @@
 			<p class="eyebrow">A private dashboard for your Git projects</p>
 			<h1 id="page-title">See every project clearly. Keep the work where it belongs.</h1>
 			<p class="lede">
-				Cadence brings project status, plans, notes, and local Git activity into one clear view. You
-				run it on your own computer, each project stays in its existing folder, and your real
-				workspace is not uploaded.
+				Cadence brings project status, plans, notes, and local Git activity into one visual view.
+				You run it on your own computer with your own AI agent alongside — each project stays in its
+				existing folder, and your real workspace is not uploaded.
 			</p>
 			<div class="hero-actions">
 				<Button href="/demo" variant="primary">Explore the demo</Button>
@@ -36,17 +36,18 @@
 				<CardHeader><h2>One view, without moving your work</h2></CardHeader>
 				<CardContent
 					><p>
-						Your projects remain separate. Cadence reads their Git status and brings the useful
-						context together in one dashboard.
+						Your projects remain separate. Cadence reads their Git status and turns the useful
+						context into one visual dashboard — what exists, what is active, what changed.
 					</p></CardContent
 				>
 			</Card>
 			<Card>
-				<CardHeader><h2>Works with the AI you already use</h2></CardHeader>
+				<CardHeader><h2>Built for you and your own AI agent</h2></CardHeader>
 				<CardContent
 					><p>
-						Ask your trusted coding agent to help set up Cadence for your folders and working style.
-						There is no built-in AI account or provider to configure.
+						The coding agent you already trust reads the same workspace structure — it can set
+						Cadence up for your folders, keep status and plans current, and answer questions about
+						your projects. There is no built-in AI account or provider.
 					</p></CardContent
 				>
 			</Card>
