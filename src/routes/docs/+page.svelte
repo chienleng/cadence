@@ -6,9 +6,9 @@
 <svelte:head><title>Set up Cadence</title></svelte:head>
 
 <main class="shell docs-shell">
-	<section class="hero">
+	<section class="hero" aria-labelledby="overview">
 		<p class="eyebrow">Setup</p>
-		<h1>See every project in one place without uploading your workspace.</h1>
+		<h1 id="overview">See every project in one place without uploading your workspace.</h1>
 		<p class="lede">
 			Cadence is a dashboard you run on your own computer. It reads project information from the
 			folders you choose and turns it into a visual view of everything you are working on — status,
@@ -25,7 +25,7 @@
 	<Card class="docs-structure-card">
 		<CardHeader>
 			<p class="eyebrow">Workspace shape</p>
-			<h2>Keep project code and Cadence notes separate.</h2>
+			<h2 id="workspace-shape">Keep project code and Cadence notes separate.</h2>
 			<p>
 				Each project stays in its own Git repository (a folder tracked by Git). Cadence keeps
 				status, plans, and other workspace notes in a separate <code>cadence-workspace</code> repository.
@@ -41,7 +41,7 @@
 ├── signal-console/                  # Independent repository
 ├── libraries/
 │   └── tide-ui/                     # Nested independent repository
-└── cadence-workspace/               # Private portfolio data
+└── cadence-workspace/               # Private project data
     ├── cadence.config.json
     ├── projects/
     │   ├── harbour-api/
@@ -88,11 +88,11 @@
 			</div>
 		</CardContent>
 	</Card>
-	<section class="hosting-guide" aria-labelledby="hosting-title">
+	<section class="hosting-guide" aria-labelledby="privacy-and-hosting">
 		<div class="section-heading">
 			<div>
 				<p class="eyebrow">Privacy and hosting</p>
-				<h2 id="hosting-title">Keep it local, or share a safe demo.</h2>
+				<h2 id="privacy-and-hosting">Keep it local, or share a safe demo.</h2>
 			</div>
 		</div>
 		<p class="hosting-lede">
@@ -170,7 +170,7 @@ pnpm deploy</code
 	</section>
 	<Card>
 		<CardHeader>
-			<h2>Set up your local dashboard</h2>
+			<h2 id="local-setup">Set up your local dashboard</h2>
 			<p>These steps assume you already have Git, Node.js, and pnpm installed.</p>
 		</CardHeader>
 		<CardContent class="prose-stack">

@@ -5,4 +5,4 @@
 
 <svelte:head><title>Fictional workspace demo | Cadence</title></svelte:head>
 
-<WorkspaceDashboard workspace={data.workspace} projectBase="/demo/projects" />
+<WorkspaceDashboard workspace={data.workspace} demo />

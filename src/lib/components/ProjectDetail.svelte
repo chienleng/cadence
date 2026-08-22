@@ -9,10 +9,10 @@
 		CardTitle,
 		EmptyState,
 		PageHeader,
-		Tooltip,
-		type BadgeVariant
+		Tooltip
 	} from '@chienleng/stratum-ui/ui';
-	import type { Lifecycle, ProjectRecordKind } from '$lib/workspace/types';
+	import { lifecycleVariant, relativeDate } from '$lib/workspace/format';
+	import type { ProjectRecordKind } from '$lib/workspace/types';
 
 	import type { ProjectDetail as ProjectDetailData } from '$lib/workspace/types';
 
@@ -25,23 +25,11 @@
 	let selectedDocument = $derived(
 		data.documents.find((document) => document.path === selectedDocumentPath) ?? data.documents[0]
 	);
-
-	function relativeDate(value: string): string {
-		const days = Math.round((new Date(value).getTime() - Date.now()) / 86_400_000);
-		if (days === 0) return 'Today';
-		return new Intl.RelativeTimeFormat('en', { numeric: 'auto' }).format(days, 'day');
-	}
+	const hasUpstream = $derived(data.project.git.ahead !== null || data.project.git.behind !== null);
 
 	function githubFile(path: string): string | null {
 		if (!data.project.git.githubUrl || !data.project.git.branch) return null;
 		return `${data.project.git.githubUrl}/blob/${data.project.git.branch}/${path}`;
-	}
-
-	function lifecycleVariant(value: Lifecycle): BadgeVariant {
-		if (value === 'active') return 'success';
-		if (value === 'maintained') return 'info';
-		if (value === 'paused') return 'warning';
-		return 'neutral';
 	}
 
 	function recordLabel(value: ProjectRecordKind): string {
@@ -61,12 +49,12 @@
 	<meta name="description" content={data.project.summary} />
 </svelte:head>
 
-<main class="shell detail-shell">
+<main id="project-overview" class="shell detail-shell">
 	<PageHeader
 		title={data.project.name}
 		subtitle={data.project.summary}
 		{backHref}
-		backLabel="Portfolio"
+		backLabel="Projects"
 	>
 		{#snippet meta()}
 			<Badge variant={lifecycleVariant(data.project.lifecycle)}>{data.project.lifecycle}</Badge>
@@ -93,7 +81,7 @@
 	<div class="detail-grid">
 		<Card>
 			<CardHeader>
-				<CardTitle><h2>Project state</h2></CardTitle>
+				<CardTitle><h2 id="project-state">Project state</h2></CardTitle>
 			</CardHeader>
 			<CardContent>
 				<ul class="check-list">
@@ -107,6 +95,63 @@
 						{/if}
 					</li>
 					<li>
+						<span>Upstream</span>
+						{#if !hasUpstream}
+							<strong>No upstream</strong>
+						{:else if (data.project.git.ahead ?? 0) === 0 && (data.project.git.behind ?? 0) === 0}
+							<Badge variant="success">In sync</Badge>
+						{:else}
+							<strong>
+								{#if (data.project.git.ahead ?? 0) > 0}↑{data.project.git.ahead} ahead{/if}
+								{#if (data.project.git.behind ?? 0) > 0}↓{data.project.git.behind} behind{/if}
+							</strong>
+						{/if}
+					</li>
+					{#if data.project.git.lastCommitSubject}
+						<li>
+							<span>Last commit</span>
+							<strong>
+								{data.project.git.lastCommitSubject} · {relativeDate(data.project.git.lastCommitAt)}
+							</strong>
+						</li>
+					{/if}
+					<li>
+						<span>Status record</span>
+						{#if !data.project.status.present}
+							<Badge variant="neutral">No STATUS.md</Badge>
+						{:else if data.project.status.stale}
+							<Badge variant="warning">
+								Stale{data.project.status.updatedAt
+									? ` · ${data.project.status.updatedAt}`
+									: ' · undated'}
+							</Badge>
+						{:else}
+							<Badge variant="success">Updated {data.project.status.updatedAt}</Badge>
+						{/if}
+					</li>
+					{#if data.project.github.state === 'ok'}
+						<li>
+							<span>Open issues · PRs</span>
+							<strong>
+								{data.project.github.openIssues ?? '—'} · {data.project.github.openPullRequests ??
+									'—'}
+							</strong>
+						</li>
+						{#if data.project.github.latestRelease}
+							<li>
+								<span>Latest release</span>
+								<a
+									class="release-link"
+									href={data.project.github.latestRelease.url}
+									target="_blank"
+									rel="external noreferrer"
+								>
+									{data.project.github.latestRelease.tagName}
+								</a>
+							</li>
+						{/if}
+					{/if}
+					<li>
 						<span>Package manager</span><strong
 							>{data.project.packageManager ?? 'Not detected'}</strong
 						>
@@ -118,7 +163,7 @@
 
 		<Card>
 			<CardHeader>
-				<CardTitle><h2>Convention coverage</h2></CardTitle>
+				<CardTitle><h2 id="convention-coverage">Convention coverage</h2></CardTitle>
 				<CardAction><Badge variant="info">{data.project.conventionScore}%</Badge></CardAction>
 			</CardHeader>
 			<CardContent>
@@ -137,7 +182,7 @@
 
 		<Card class="full">
 			<CardHeader>
-				<CardTitle><h2>Project workflow</h2></CardTitle>
+				<CardTitle><h2 id="project-workflow">Project workflow</h2></CardTitle>
 				<CardAction><Badge variant="info">{data.records.length} records</Badge></CardAction>
 			</CardHeader>
 			<CardContent>
@@ -189,7 +234,7 @@
 
 		<Card class="full">
 			<CardHeader>
-				<CardTitle><h2>Recent commits</h2></CardTitle>
+				<CardTitle><h2 id="recent-commits">Recent commits</h2></CardTitle>
 				<CardAction><span class="meta-label">Local Git</span></CardAction>
 			</CardHeader>
 			<CardContent>
@@ -215,7 +260,7 @@
 
 		<Card class="full">
 			<CardHeader>
-				<CardTitle><h2>Knowledge map</h2></CardTitle>
+				<CardTitle><h2 id="knowledge-map">Knowledge map</h2></CardTitle>
 				<CardAction><Badge>{data.documents.length} files</Badge></CardAction>
 			</CardHeader>
 			<CardContent>

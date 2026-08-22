@@ -41,7 +41,7 @@ planning or substantial changes. If a tool does not inherit workspace-level inst
 `pnpm context --cwd /path/to/project --snippet` and review the generated section before adding it to
 that project's own `AGENTS.md`. Cadence never applies these snippets itself.
 
-Portfolio membership changes only when a project directory and `project.json` are deliberately
+Project registration changes only when a project directory and `project.json` are deliberately
 added to the data repository. See [Agent context discovery](agent-context.md) for the full contract.
 
 ## If you want a public cloud demo

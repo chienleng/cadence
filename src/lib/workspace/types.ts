@@ -1,4 +1,4 @@
-export type Lifecycle = 'active' | 'maintained' | 'paused' | 'dormant' | 'unknown';
+export type Lifecycle = 'active' | 'maintained' | 'paused' | 'dormant' | 'archived' | 'unknown';
 
 export interface ProjectDefinition {
 	path: string;
@@ -39,6 +39,36 @@ export interface GitSnapshot {
 	lastCommitSubject: string | null;
 	remoteUrl: string | null;
 	githubUrl: string | null;
+	/** Commits ahead of upstream; null when there is no upstream to compare. */
+	ahead: number | null;
+	/** Commits behind upstream; null when there is no upstream to compare. */
+	behind: number | null;
+	/** Commit counts per week over the recent past, oldest week first. */
+	commitsByWeek: number[];
+}
+
+export interface GithubRelease {
+	name: string;
+	tagName: string;
+	url: string;
+	publishedAt: string;
+}
+
+/** GitHub data comes from the refresh cache; 'absent' means render nothing. */
+export interface GithubSnapshot {
+	state: 'ok' | 'absent';
+	fetchedAt: string | null;
+	isPrivate: boolean | null;
+	openIssues: number | null;
+	openPullRequests: number | null;
+	latestRelease: GithubRelease | null;
+}
+
+export interface StatusFreshness {
+	present: boolean;
+	updatedAt: string | null;
+	/** True when STATUS.md exists but is undated or older than 30 days. */
+	stale: boolean;
 }
 
 export interface ProjectSnapshot extends ProjectDefinition {
@@ -49,6 +79,8 @@ export interface ProjectSnapshot extends ProjectDefinition {
 	conventionScore: number;
 	documentCount: number;
 	git: GitSnapshot;
+	github: GithubSnapshot;
+	status: StatusFreshness;
 }
 
 export interface WorkspaceSnapshot {
@@ -63,6 +95,10 @@ export interface WorkspaceSnapshot {
 		dirty: number;
 		missing: number;
 		fullyStandardized: number;
+		behindUpstream: number;
+		staleStatus: number;
+		openIssues: number;
+		openPullRequests: number;
 	};
 }
 

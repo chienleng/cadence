@@ -4,8 +4,12 @@ import { access, readFile, readdir } from 'node:fs/promises';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { promisify } from 'node:util';
 import MarkdownIt from 'markdown-it';
+import { weeklyCommitBuckets } from '$lib/workspace/cadence';
+import { staleStatus, statusDate } from '$lib/workspace/freshness';
 import type {
 	ConventionCheck,
+	GithubRelease,
+	GithubSnapshot,
 	GitSnapshot,
 	ProjectDefinition,
 	ProjectDetail,
@@ -14,6 +18,7 @@ import type {
 	ProjectRecordKind,
 	ProjectSnapshot,
 	RecentCommit,
+	StatusFreshness,
 	WorkspaceConfig,
 	WorkspaceLoadResult,
 	WorkspaceSnapshot
@@ -34,7 +39,18 @@ const EMPTY_GIT: GitSnapshot = {
 	lastCommitHash: null,
 	lastCommitSubject: null,
 	remoteUrl: null,
-	githubUrl: null
+	githubUrl: null,
+	ahead: null,
+	behind: null,
+	commitsByWeek: []
+};
+const ABSENT_GITHUB: GithubSnapshot = {
+	state: 'absent',
+	fetchedAt: null,
+	isPrivate: null,
+	openIssues: null,
+	openPullRequests: null,
+	latestRelease: null
 };
 
 async function exists(path: string): Promise<boolean> {
@@ -130,7 +146,7 @@ export async function loadWorkspaceConfig(): Promise<WorkspaceConfig> {
 	return config;
 }
 
-const LIFECYCLES = new Set(['active', 'maintained', 'paused', 'dormant', 'unknown']);
+const LIFECYCLES = new Set(['active', 'maintained', 'paused', 'dormant', 'archived', 'unknown']);
 
 export async function loadProjectDefinitions(): Promise<ProjectDefinition[]> {
 	const root = projectsRoot();
@@ -216,17 +232,27 @@ function githubUrl(remote: string | null): string | null {
 	}
 }
 
+function commitCount(value: string | undefined): number | null {
+	if (value === undefined) return null;
+	const count = Number(value);
+	return Number.isInteger(count) && count >= 0 ? count : null;
+}
+
 async function inspectGit(directory: string): Promise<GitSnapshot> {
 	if (!(await exists(resolve(directory, '.git')))) return { ...EMPTY_GIT };
 
-	const [branch, status, log, remoteUrl] = await Promise.all([
+	const [branch, status, log, remoteUrl, divergence, recentDates] = await Promise.all([
 		git(directory, ['branch', '--show-current']),
 		git(directory, ['status', '--porcelain=v1']),
 		git(directory, ['log', '-1', '--format=%cI%x00%h%x00%s']),
-		git(directory, ['remote', 'get-url', 'origin'])
+		git(directory, ['remote', 'get-url', 'origin']),
+		git(directory, ['rev-list', '--left-right', '--count', '@{upstream}...HEAD']),
+		git(directory, ['log', '--since=84.days', '--format=%cI'])
 	]);
 	const [lastCommitAt = null, lastCommitHash = null, lastCommitSubject = null] =
 		log?.split('\0') ?? [];
+	// rev-list --left-right --count upstream...HEAD prints "behind<TAB>ahead".
+	const [behind, ahead] = divergence?.split(/\s+/) ?? [];
 
 	return {
 		isRepository: true,
@@ -236,7 +262,10 @@ async function inspectGit(directory: string): Promise<GitSnapshot> {
 		lastCommitHash,
 		lastCommitSubject,
 		remoteUrl,
-		githubUrl: githubUrl(remoteUrl)
+		githubUrl: githubUrl(remoteUrl),
+		ahead: commitCount(ahead),
+		behind: commitCount(behind),
+		commitsByWeek: weeklyCommitBuckets(recentDates?.split('\n').filter(Boolean) ?? [])
 	};
 }
 
@@ -291,7 +320,84 @@ async function check(
 	return { key, label, present: await result };
 }
 
-async function inspectProject(root: string, project: ProjectDefinition): Promise<ProjectSnapshot> {
+async function optionalText(path: string): Promise<string | null> {
+	try {
+		return await readFile(path, 'utf8');
+	} catch {
+		return null;
+	}
+}
+
+/** Status records live in the data repository, so this works even when the
+ *  project directory itself is missing locally. */
+async function statusFreshness(projectPath: string): Promise<StatusFreshness> {
+	const text = await optionalText(resolve(projectRecordsDirectory(projectPath), 'STATUS.md'));
+	if (text === null) return { present: false, updatedAt: null, stale: false };
+	const updatedAt = statusDate(text);
+	return { present: true, updatedAt, stale: staleStatus(updatedAt) };
+}
+
+function githubCachePath(): string {
+	return resolve(
+		process.env.CADENCE_CACHE_ROOT ?? resolve(APP_ROOT, '.workspace-cache'),
+		'projects.json'
+	);
+}
+
+function normalizeRelease(value: unknown): GithubRelease | null {
+	if (!value || typeof value !== 'object') return null;
+	const release = value as Record<string, unknown>;
+	if (typeof release.tagName !== 'string' || typeof release.url !== 'string') return null;
+	return {
+		name: typeof release.name === 'string' && release.name ? release.name : release.tagName,
+		tagName: release.tagName,
+		url: release.url,
+		publishedAt: typeof release.publishedAt === 'string' ? release.publishedAt : ''
+	};
+}
+
+/** GitHub data from `pnpm refresh`'s cache, keyed by project path. Any kind
+ *  of absence (no cache, unreadable, skipped/failed entry) yields no entry —
+ *  the dashboard simply omits GitHub facts. */
+async function readGithubCache(): Promise<Map<string, GithubSnapshot>> {
+	const byPath = new Map<string, GithubSnapshot>();
+	const raw = await optionalText(githubCachePath());
+	if (!raw) return byPath;
+	try {
+		const cache = JSON.parse(raw) as {
+			schemaVersion?: unknown;
+			generatedAt?: unknown;
+			projects?: unknown;
+		};
+		if (cache.schemaVersion !== 1 || !Array.isArray(cache.projects)) return byPath;
+		const fetchedAt = typeof cache.generatedAt === 'string' ? cache.generatedAt : null;
+		for (const entry of cache.projects as Array<Record<string, unknown>>) {
+			if (typeof entry?.path !== 'string') continue;
+			const github = entry.github as Record<string, unknown> | undefined;
+			if (github?.state !== 'updated') continue;
+			const issues = github.issues as { totalCount?: unknown } | undefined;
+			const pullRequests = github.pullRequests as { totalCount?: unknown } | undefined;
+			byPath.set(entry.path, {
+				state: 'ok',
+				fetchedAt,
+				isPrivate: typeof github.isPrivate === 'boolean' ? github.isPrivate : null,
+				openIssues: typeof issues?.totalCount === 'number' ? issues.totalCount : null,
+				openPullRequests:
+					typeof pullRequests?.totalCount === 'number' ? pullRequests.totalCount : null,
+				latestRelease: normalizeRelease(github.latestRelease)
+			});
+		}
+	} catch {
+		// An unreadable cache is the same as no cache.
+	}
+	return byPath;
+}
+
+async function inspectProject(
+	root: string,
+	project: ProjectDefinition,
+	github: GithubSnapshot
+): Promise<ProjectSnapshot> {
 	const directory = projectDirectory(root, project.path);
 	const projectExists = await exists(directory);
 	if (!projectExists) {
@@ -303,15 +409,18 @@ async function inspectProject(root: string, project: ProjectDefinition): Promise
 			convention: [],
 			conventionScore: 0,
 			documentCount: 0,
-			git: { ...EMPTY_GIT }
+			git: { ...EMPTY_GIT },
+			github,
+			status: await statusFreshness(project.path)
 		};
 	}
 
-	const [packageManager, convention, documentCount, gitSnapshot] = await Promise.all([
+	const [packageManager, convention, documentCount, gitSnapshot, status] = await Promise.all([
 		detectPackageManager(directory),
 		conventionChecks(directory, project.path),
 		markdownCount(directory, project.path),
-		inspectGit(directory)
+		inspectGit(directory),
+		statusFreshness(project.path)
 	]);
 	const complete = convention.filter((item) => item.present).length;
 
@@ -323,14 +432,24 @@ async function inspectProject(root: string, project: ProjectDefinition): Promise
 		convention,
 		conventionScore: Math.round((complete / convention.length) * 100),
 		documentCount,
-		git: gitSnapshot
+		git: gitSnapshot,
+		github,
+		status
 	};
 }
 
 export async function scanWorkspace(): Promise<WorkspaceSnapshot> {
 	const config = await loadWorkspaceConfig();
-	const [root, definitions] = await Promise.all([workspaceRoot(config), loadProjectDefinitions()]);
-	const projects = await Promise.all(definitions.map((project) => inspectProject(root, project)));
+	const [root, definitions, githubByPath] = await Promise.all([
+		workspaceRoot(config),
+		loadProjectDefinitions(),
+		readGithubCache()
+	]);
+	const projects = await Promise.all(
+		definitions.map((project) =>
+			inspectProject(root, project, githubByPath.get(project.path) ?? ABSENT_GITHUB)
+		)
+	);
 
 	return {
 		mode: 'local',
@@ -343,7 +462,14 @@ export async function scanWorkspace(): Promise<WorkspaceSnapshot> {
 			active: projects.filter((project) => project.lifecycle === 'active').length,
 			dirty: projects.filter((project) => project.git.dirtyFiles > 0).length,
 			missing: projects.filter((project) => !project.exists).length,
-			fullyStandardized: projects.filter((project) => project.conventionScore === 100).length
+			fullyStandardized: projects.filter((project) => project.conventionScore === 100).length,
+			behindUpstream: projects.filter((project) => (project.git.behind ?? 0) > 0).length,
+			staleStatus: projects.filter((project) => project.status.stale).length,
+			openIssues: projects.reduce((total, project) => total + (project.github.openIssues ?? 0), 0),
+			openPullRequests: projects.reduce(
+				(total, project) => total + (project.github.openPullRequests ?? 0),
+				0
+			)
 		}
 	};
 }

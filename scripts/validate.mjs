@@ -5,7 +5,7 @@ import { dirname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const lifecycles = new Set(['active', 'maintained', 'paused', 'dormant', 'unknown']);
+const lifecycles = new Set(['active', 'maintained', 'paused', 'dormant', 'archived', 'unknown']);
 
 async function exists(path) {
 	try {

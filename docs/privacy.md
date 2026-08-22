@@ -8,7 +8,7 @@ does not upload your dashboard or workspace records.
 
 Keep `cadence-workspace` private by default. Either create it as a private Git repository or leave
 it without a remote. This repository may contain client names, project paths, status notes, plans,
-decisions, meetings, and other portfolio context even when the source repositories themselves are
+decisions, meetings, and other project context even when the source repositories themselves are
 public.
 
 Treat `cadence-workspace` as the folder you must keep safe. Back it up with a private Git remote or a

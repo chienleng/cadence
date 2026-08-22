@@ -1,20 +1,58 @@
 import type {
+	GithubSnapshot,
+	GitSnapshot,
 	ProjectDetail,
 	ProjectSnapshot,
+	StatusFreshness,
 	WorkspaceLoadResult,
 	WorkspaceSnapshot
 } from '$lib/workspace/types';
 
-const git = (branch: string, subject: string, daysAgo: number) => ({
+const git = (
+	branch: string,
+	subject: string,
+	daysAgo: number,
+	options: Partial<Pick<GitSnapshot, 'dirtyFiles' | 'ahead' | 'behind' | 'commitsByWeek'>> = {}
+): GitSnapshot => ({
 	isRepository: true,
 	branch,
-	dirtyFiles: 0,
+	dirtyFiles: options.dirtyFiles ?? 0,
 	lastCommitAt: new Date(Date.now() - daysAgo * 86_400_000).toISOString(),
 	lastCommitHash: 'd3m0abc',
 	lastCommitSubject: subject,
 	remoteUrl: null,
-	githubUrl: null
+	githubUrl: null,
+	ahead: options.ahead ?? 0,
+	behind: options.behind ?? 0,
+	commitsByWeek: options.commitsByWeek ?? [0, 1, 0, 2, 1, 3, 2, 4, 3, 5, 4, 6]
 });
+
+const ABSENT_GITHUB: GithubSnapshot = {
+	state: 'absent',
+	fetchedAt: null,
+	isPrivate: null,
+	openIssues: null,
+	openPullRequests: null,
+	latestRelease: null
+};
+
+const github = (
+	openIssues: number,
+	openPullRequests: number,
+	options: Partial<Omit<GithubSnapshot, 'state' | 'openIssues' | 'openPullRequests'>> = {}
+): GithubSnapshot => ({
+	state: 'ok',
+	fetchedAt: new Date(Date.now() - 3_600_000).toISOString(),
+	isPrivate: options.isPrivate ?? false,
+	openIssues,
+	openPullRequests,
+	latestRelease: options.latestRelease ?? null
+});
+
+const status = (daysAgo: number): StatusFreshness => {
+	const updatedAt = new Date(Date.now() - daysAgo * 86_400_000).toISOString().slice(0, 10);
+	return { present: true, updatedAt, stale: daysAgo > 30 };
+};
 
 const convention = [
 	{ key: 'readme' as const, label: 'README', present: true },
@@ -32,12 +70,25 @@ const projects: ProjectSnapshot[] = [
 		group: 'Products',
 		summary: 'Typed service for coordinating fictional harbour operations.',
 		lifecycle: 'active',
+		priority: 'high',
+		tags: ['typescript', 'api'],
 		exists: true,
 		packageManager: 'pnpm',
 		convention,
 		conventionScore: 100,
 		documentCount: 9,
-		git: git('main', 'Document berth allocation workflow', 1)
+		git: git('main', 'Document berth allocation workflow', 1, {
+			commitsByWeek: [2, 3, 1, 4, 2, 5, 3, 4, 6, 3, 5, 7]
+		}),
+		github: github(4, 1, {
+			latestRelease: {
+				name: 'Harbour API v1.4.0',
+				tagName: 'v1.4.0',
+				url: 'https://example.com/harbour-api/releases/v1.4.0',
+				publishedAt: new Date(Date.now() - 6 * 86_400_000).toISOString()
+			}
+		}),
+		status: status(3)
 	},
 	{
 		id: 'signal-console',
@@ -46,12 +97,20 @@ const projects: ProjectSnapshot[] = [
 		group: 'Products',
 		summary: 'Operations dashboard for a fictional distributed sensor network.',
 		lifecycle: 'active',
+		priority: 'normal',
+		tags: ['dashboard', 'realtime'],
 		exists: true,
 		packageManager: 'npm',
 		convention,
 		conventionScore: 100,
 		documentCount: 12,
-		git: git('main', 'Add regional health summary', 3)
+		git: git('main', 'Add regional health summary', 3, {
+			dirtyFiles: 2,
+			ahead: 2,
+			commitsByWeek: [0, 0, 1, 0, 2, 1, 0, 3, 2, 4, 1, 2]
+		}),
+		github: github(2, 0, { isPrivate: true }),
+		status: status(5)
 	},
 	{
 		id: 'tide-ui',
@@ -60,6 +119,8 @@ const projects: ProjectSnapshot[] = [
 		group: 'Libraries',
 		summary: 'Shared interface components for the fictional product suite.',
 		lifecycle: 'maintained',
+		priority: 'low',
+		tags: ['components'],
 		exists: true,
 		packageManager: 'pnpm',
 		convention: convention.map((item) =>
@@ -67,7 +128,12 @@ const projects: ProjectSnapshot[] = [
 		),
 		conventionScore: 80,
 		documentCount: 6,
-		git: git('main', 'Refine empty-state component', 8)
+		git: git('main', 'Refine empty-state component', 8, {
+			behind: 3,
+			commitsByWeek: [3, 2, 4, 1, 2, 1, 0, 1, 0, 0, 1, 0]
+		}),
+		github: ABSENT_GITHUB,
+		status: status(60)
 	}
 ];
 
@@ -80,9 +146,16 @@ const workspace: WorkspaceSnapshot = {
 	summary: {
 		total: projects.length,
 		active: projects.filter((project) => project.lifecycle === 'active').length,
-		dirty: 0,
-		missing: 0,
-		fullyStandardized: projects.filter((project) => project.conventionScore === 100).length
+		dirty: projects.filter((project) => project.git.dirtyFiles > 0).length,
+		missing: projects.filter((project) => !project.exists).length,
+		fullyStandardized: projects.filter((project) => project.conventionScore === 100).length,
+		behindUpstream: projects.filter((project) => (project.git.behind ?? 0) > 0).length,
+		staleStatus: projects.filter((project) => project.status.stale).length,
+		openIssues: projects.reduce((total, project) => total + (project.github.openIssues ?? 0), 0),
+		openPullRequests: projects.reduce(
+			(total, project) => total + (project.github.openPullRequests ?? 0),
+			0
+		)
 	}
 };
 

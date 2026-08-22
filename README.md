@@ -26,7 +26,7 @@ fictional demo data and never has access to your real workspace.
 
 - Every project remains an independent repository.
 - Project repositories keep their code, `README.md`, `AGENTS.md`, and technical documentation.
-- The separate `cadence-workspace` repository keeps portfolio information such as status, plans,
+- The separate `cadence-workspace` repository keeps project information such as status, plans,
   decisions, meetings, and notes under a visible `projects/` folder.
 - GitHub Issues remain the place for actionable work. Cadence does not replace your issue tracker.
 - Cadence never writes to monitored repositories.

@@ -22,7 +22,7 @@ fictional provider, keeping Node inspection code out of the Worker execution pat
 | Concern                           | Source                                                  |
 | --------------------------------- | ------------------------------------------------------- |
 | Workspace identity and root       | `cadence.config.json` in the data repository            |
-| Portfolio membership and metadata | `projects/**/project.json`                              |
+| Project registration and metadata | `projects/**/project.json`                              |
 | Current state and durable records | Other Markdown files beneath that project directory     |
 | Project purpose and operation     | Source repository `README.md`, `AGENTS.md`, and `docs/` |
 | Actionable work                   | GitHub Issues                                           |

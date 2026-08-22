@@ -1,13 +1,24 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { navigating } from '$app/state';
 	import { demoMode } from '$cadence-mode';
-	import { Button } from '@chienleng/stratum-ui/ui';
 	import '@chienleng/stratum-ui/themes/neutral.css';
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
+	import AppSidebar from '$lib/components/AppSidebar.svelte';
+	import ProjectLoading from '$lib/components/ProjectLoading.svelte';
 
 	let { children } = $props();
-	const hosted = demoMode;
+
+	const projectsHref = demoMode ? resolve('/demo') : resolve('/');
+	const projectPathPrefix = demoMode ? '/demo/projects/' : '/projects/';
+	const pathChanged = $derived(
+		navigating.to !== null && navigating.to.url.pathname !== navigating.from?.url.pathname
+	);
+	const enteringProjects = $derived(pathChanged && navigating.to?.url.pathname === projectsHref);
+	const enteringProject = $derived(
+		pathChanged && navigating.to?.url.pathname.startsWith(projectPathPrefix)
+	);
 </script>
 
 <svelte:head>
@@ -18,24 +29,15 @@
 	/>
 </svelte:head>
 
-<header class="site-header">
-	<a class="brand" href={resolve('/')} aria-label="Cadence home">
-		<span class="brand-mark" aria-hidden="true">CA</span>
-		<span>Cadence</span>
-	</a>
-	<nav aria-label="Primary navigation">
-		<Button href={hosted ? resolve('/demo') : resolve('/')} variant="ghost" size="sm"
-			>Portfolio</Button
-		>
-		<Button href={resolve('/docs')} variant="ghost" size="sm">Docs</Button>
-		<Button
-			href="https://github.com/chienleng/cadence"
-			variant="ghost"
-			size="sm"
-			target="_blank"
-			rel="external noreferrer">GitHub</Button
-		>
-	</nav>
-</header>
-
-{@render children()}
+<div class="app-shell">
+	<AppSidebar />
+	<div class="app-main" aria-busy={enteringProjects || enteringProject}>
+		{#if enteringProject}
+			<ProjectLoading detail />
+		{:else if enteringProjects}
+			<ProjectLoading />
+		{:else}
+			{@render children()}
+		{/if}
+	</div>
+</div>

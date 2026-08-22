@@ -1,6 +1,6 @@
 # Agent context discovery
 
-Cadence keeps portfolio records outside project repositories, so their existence alone cannot make
+Cadence keeps project records outside project repositories, so their existence alone cannot make
 an agent read them. Discovery is an explicit, testable convention:
 
 1. The workspace-level `AGENTS.md` tells agents to run Cadence before planning or substantial work.

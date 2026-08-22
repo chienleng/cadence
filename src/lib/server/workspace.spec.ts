@@ -16,6 +16,7 @@ let fixtureRoot: string;
 let dataRoot: string;
 let workspaceRoot: string;
 const originalDataRoot = process.env.CADENCE_DATA_ROOT;
+const originalCacheRoot = process.env.CADENCE_CACHE_ROOT;
 
 async function write(path: string, content: string): Promise<void> {
 	await mkdir(resolve(path, '..'), { recursive: true });
@@ -38,6 +39,8 @@ beforeEach(async () => {
 	dataRoot = resolve(fixtureRoot, 'data');
 	workspaceRoot = resolve(fixtureRoot, 'workspace');
 	process.env.CADENCE_DATA_ROOT = dataRoot;
+	// Keep the developer's real refresh cache out of test snapshots.
+	process.env.CADENCE_CACHE_ROOT = resolve(fixtureRoot, 'no-cache');
 	await write(
 		resolve(dataRoot, 'cadence.config.json'),
 		JSON.stringify({ schemaVersion: 1, name: 'Test workspace', workspaceRoot: '../workspace' })
@@ -54,11 +57,13 @@ beforeEach(async () => {
 afterEach(async () => {
 	if (originalDataRoot === undefined) delete process.env.CADENCE_DATA_ROOT;
 	else process.env.CADENCE_DATA_ROOT = originalDataRoot;
+	if (originalCacheRoot === undefined) delete process.env.CADENCE_CACHE_ROOT;
+	else process.env.CADENCE_CACHE_ROOT = originalCacheRoot;
 	await rm(fixtureRoot, { recursive: true, force: true });
 });
 
 describe('local workspace provider', () => {
-	it('discovers visible project records as the portfolio authority', async () => {
+	it('discovers visible project records as the project authority', async () => {
 		const definitions = await loadProjectDefinitions();
 		expect(definitions).toHaveLength(1);
 		expect(definitions[0]?.path).toBe('apps/harbour');
@@ -92,6 +97,75 @@ describe('local workspace provider', () => {
 		expect(result.state).toBe('invalid');
 		if (result.state === 'invalid')
 			expect(result.errors.join(' ')).toContain('expected "apps/harbour"');
+	});
+
+	it('reports enrichment fields gracefully when there is no upstream or cache', async () => {
+		await execFileAsync('git', ['init'], { cwd: resolve(workspaceRoot, 'apps/harbour') });
+		const snapshot = await scanWorkspace();
+		const project = snapshot.projects[0];
+		expect(project?.git.ahead).toBeNull();
+		expect(project?.git.behind).toBeNull();
+		expect(project?.git.commitsByWeek).toHaveLength(12);
+		expect(project?.github.state).toBe('absent');
+		// The fixture STATUS.md has no "Updated:" line, so it counts as stale.
+		expect(project?.status).toMatchObject({ present: true, updatedAt: null, stale: true });
+		expect(snapshot.summary).toMatchObject({
+			behindUpstream: 0,
+			staleStatus: 1,
+			openIssues: 0,
+			openPullRequests: 0
+		});
+	});
+
+	it('surfaces GitHub counts from the refresh cache when present', async () => {
+		const cacheRoot = resolve(fixtureRoot, 'cache');
+		process.env.CADENCE_CACHE_ROOT = cacheRoot;
+		await write(
+			resolve(cacheRoot, 'projects.json'),
+			JSON.stringify({
+				schemaVersion: 1,
+				generatedAt: '2026-08-21T00:00:00Z',
+				projects: [
+					{
+						path: 'apps/harbour',
+						github: {
+							state: 'updated',
+							isPrivate: true,
+							issues: { totalCount: 4 },
+							pullRequests: { totalCount: 2 },
+							latestRelease: {
+								name: 'v1.0.0',
+								tagName: 'v1.0.0',
+								url: 'https://example.com/releases/v1.0.0',
+								publishedAt: '2026-08-01T00:00:00Z'
+							}
+						}
+					}
+				]
+			})
+		);
+		const snapshot = await scanWorkspace();
+		expect(snapshot.projects[0]?.github).toMatchObject({
+			state: 'ok',
+			fetchedAt: '2026-08-21T00:00:00Z',
+			isPrivate: true,
+			openIssues: 4,
+			openPullRequests: 2,
+			latestRelease: { tagName: 'v1.0.0' }
+		});
+		expect(snapshot.summary.openIssues).toBe(4);
+		expect(snapshot.summary.openPullRequests).toBe(2);
+	});
+
+	it('reads a fresh Updated line from STATUS.md', async () => {
+		const updatedAt = new Date().toISOString().slice(0, 10);
+		await write(
+			resolve(dataRoot, 'projects/apps/harbour/STATUS.md'),
+			`# Harbour status\n\nUpdated: ${updatedAt}\n\nReady.`
+		);
+		const snapshot = await scanWorkspace();
+		expect(snapshot.projects[0]?.status).toEqual({ present: true, updatedAt, stale: false });
+		expect(snapshot.summary.staleStatus).toBe(0);
 	});
 
 	it('refresh writes only Cadence cache and leaves the monitored repository unchanged', async () => {
