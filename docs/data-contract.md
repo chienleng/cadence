@@ -17,13 +17,16 @@ cadence-workspace/
 │       └── inbox/
 └── workspace/
     ├── AGENTS.md
+    ├── CLAUDE.md
     └── skills/
 ```
 
 The visible `projects/` tree is durable data, not generated cache. Commit it to the private data
 repository so people and their chosen tools can inspect its history. The `workspace/` directory
-versions workspace-level guides and reusable skills; expose them at the real workspace root using a
-deliberate symlink or copy so compatible agents can discover them.
+versions workspace-level guides, vendor compatibility shims such as a Claude Code `CLAUDE.md` that
+loads the guide with an `@AGENTS.md` import (see [Agent context discovery](agent-context.md)), and
+reusable skills; expose them at the real workspace root using a deliberate symlink or copy so
+compatible agents can discover them.
 
 `cadence.config.json` contains schema version `1`, a display `name`, and `workspaceRoot`. Relative
 workspace roots resolve from the data repository.

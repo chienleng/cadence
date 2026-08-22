@@ -14,9 +14,9 @@ the following request from the Cadence checkout:
 > repositories that genuinely represent projects.
 > Do not edit any monitored repository. Show me the proposed groups, paths, summaries, lifecycle
 > values, and workspace-level `AGENTS.md` context instruction before writing. After I approve them,
-> create only the data repository and workspace-level guide, preserve visible `projects/` records,
-> run `pnpm validate` and `pnpm context --audit`, and report anything uncertain instead of inventing
-> it.
+> create only the data repository, workspace-level guide, and vendor compatibility shims, preserve
+> visible `projects/` records, run `pnpm validate` and `pnpm context --audit`, and report anything
+> uncertain instead of inventing it.
 
 Review the proposed inventory carefully, particularly client names and anything that should not be
 versioned. The data repository should normally remain private and be backed up with a private Git
@@ -37,7 +37,16 @@ backed-up workspace folder. Reinstalling the app cannot recover plans, decisions
 every copy of `cadence-workspace` has been lost.
 
 The workspace-level `AGENTS.md` should tell every coding agent to run the context resolver before
-planning or substantial changes. If a tool does not inherit workspace-level instructions, run
+planning or substantial changes. Tools that load a vendor-specific file instead need a shim that
+loads that guide rather than points at it — for Claude Code, a `CLAUDE.md` at the workspace root
+whose content is an `@AGENTS.md` import; a bare "read AGENTS.md first" pointer is routinely
+skipped. See [Agent context discovery](agent-context.md) for the shim contract;
+`pnpm context --audit` reports a shim that only references the guide as `pointer-only`. Tools that
+read `AGENTS.md` natively, such as OpenAI Codex, need no root shim but scope discovery to the Git
+root, so sessions inside a sub-repository never load the workspace guide on their own — give those
+projects the generated section below, or add a scoped routing rule to the tool's global
+instructions (for Codex, `~/.codex/AGENTS.md`). If a tool
+does not inherit workspace-level instructions at all, run
 `pnpm context --cwd /path/to/project --snippet` and review the generated section before adding it to
 that project's own `AGENTS.md`. Cadence never applies these snippets itself.
 

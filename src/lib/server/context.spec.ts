@@ -112,6 +112,25 @@ describe('agent context discovery', () => {
 		expect(audit.summary.ready).toBe(1);
 		expect(audit.summary['no-status']).toBe(1);
 	});
+
+	it('audits workspace vendor shims for guide-loading directives', async () => {
+		const absent = JSON.parse(await context(['--audit', '--json']));
+		expect(absent.vendorShims).toEqual([
+			{ file: 'CLAUDE.md', loadDirective: '@AGENTS.md', state: 'absent' }
+		]);
+
+		await write(
+			resolve(workspaceRoot, 'CLAUDE.md'),
+			'Read and follow [AGENTS.md](AGENTS.md) first.\n'
+		);
+		const pointer = JSON.parse(await context(['--audit', '--json']));
+		expect(pointer.vendorShims[0].state).toBe('pointer-only');
+		expect(await context(['--audit'])).toContain('pointer-only');
+
+		await write(resolve(workspaceRoot, 'CLAUDE.md'), '@AGENTS.md\n');
+		const loaded = JSON.parse(await context(['--audit', '--json']));
+		expect(loaded.vendorShims[0].state).toBe('ok');
+	});
 });
 
 describe('workspace overview', () => {

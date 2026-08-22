@@ -30,7 +30,8 @@ plans, decisions, meetings, notes, and inbox records.
 
 `--snippet` prints a deterministic project-level `AGENTS.md` section for review but never applies it.
 `--audit` classifies every registered project using the states documented in
-[Agent context discovery](agent-context.md). All context operations are read-only.
+[Agent context discovery](agent-context.md), and reports workspace vendor shims (for example
+`CLAUDE.md`) as `ok`, `pointer-only`, or `absent`. All context operations are read-only.
 
 `--overview` answers workspace-wide status questions from any directory. It aggregates every
 project's `STATUS.md` highlights ordered by recency, lists projects without status, collects records

@@ -13,3 +13,9 @@ pnpm --dir /path/to/cadence context --cwd "$PWD"
 
 Adapt `/path/to/cadence` during setup. Read the reported status and relevant plans and decisions;
 report missing or uncertain context rather than inventing it.
+
+## Remembering things
+
+When asked to remember something about a project, record it in that project's workspace records —
+status and follow-ups in `STATUS.md`, working knowledge in `notes/`, decisions in `decisions/` —
+never in vendor-specific agent memory. The workspace records are the single source of truth.

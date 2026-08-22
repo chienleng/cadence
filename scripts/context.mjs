@@ -9,6 +9,8 @@ const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const recordDirectories = new Set(['plans', 'decisions', 'meetings', 'notes', 'inbox']);
 const cacheStaleAfterDays = 7;
 const defaultRecentDays = 14;
+// Vendor files loaded instead of AGENTS.md must load the guide, not point at it.
+const vendorShimFiles = [{ file: 'CLAUDE.md', loadDirective: '@AGENTS.md' }];
 
 async function exists(path) {
 	try {
@@ -202,6 +204,19 @@ export async function resolveProjectContext({ cwd = process.cwd(), dataRoot, now
 	return inspectProject(validation, project, now);
 }
 
+async function inspectVendorShims(workspaceRoot) {
+	const shims = [];
+	for (const { file, loadDirective } of vendorShimFiles) {
+		const text = await optionalText(resolve(workspaceRoot, file));
+		shims.push({
+			file,
+			loadDirective,
+			state: text === null ? 'absent' : text.includes(loadDirective) ? 'ok' : 'pointer-only'
+		});
+	}
+	return shims;
+}
+
 export async function auditProjectContexts({ dataRoot, now } = {}) {
 	const validation = await validateDataRoot(dataRoot);
 	if (!validation.valid) throw new Error(validation.issues.join('\n'));
@@ -212,6 +227,7 @@ export async function auditProjectContexts({ dataRoot, now } = {}) {
 	return {
 		dataRoot: validation.dataRoot,
 		workspaceRoot: validation.workspaceRoot,
+		vendorShims: await inspectVendorShims(validation.workspaceRoot),
 		projects,
 		summary: Object.fromEntries(
 			states.map((state) => [state, projects.filter((item) => item.state === state).length])
@@ -353,6 +369,8 @@ ${context.contextCommand}
 \`\`\`
 
 Read the reported status and relevant plans and decisions. GitHub Issues remain the source of actionable work.
+
+When asked to remember something about this project, record it in its Cadence workspace records (\`STATUS.md\`, \`notes/\`, \`decisions/\`), not in vendor-specific agent memory.
 <!-- cadence-context:end -->`;
 }
 
@@ -374,6 +392,9 @@ function printContext(context) {
 			console.log(`- ${record.kind}: [${record.title}](${record.path})`);
 		console.log('');
 	}
+	console.log(
+		'Record things to remember about this project in its workspace records (STATUS.md, notes/, decisions/), not in vendor-specific agent memory.'
+	);
 }
 
 function printAudit(audit) {
@@ -381,6 +402,11 @@ function printAudit(audit) {
 	for (const item of audit.projects) {
 		console.log(`${item.state.padEnd(14)} ${item.project.path}`);
 	}
+	console.log('\nWorkspace vendor shims:');
+	for (const shim of audit.vendorShims)
+		console.log(
+			`- ${shim.file}: ${shim.state}${shim.state === 'pointer-only' ? ` — a shim must load the guide, not point at it; make its content a ${shim.loadDirective} import` : ''}`
+		);
 	console.log('\nSummary:');
 	for (const [state, count] of Object.entries(audit.summary)) console.log(`- ${state}: ${count}`);
 }
