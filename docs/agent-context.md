@@ -6,7 +6,10 @@ an agent read them. Discovery is an explicit, testable convention:
 1. The workspace-level `AGENTS.md` tells agents to run Cadence before planning or substantial work.
 2. `pnpm context --cwd <path>` maps the working directory to the most specific registered project
    and prints its status and related plans, decisions, meetings, notes, and inbox records.
-3. `pnpm context --audit` reports whether each project is discoverable and whether its source and
+3. `pnpm context --overview` answers workspace-wide status questions ("what's my latest status?")
+   from any directory: statuses ordered by recency, recent records, and repository activity joined
+   from the refresh snapshot when present.
+4. `pnpm context --audit` reports whether each project is discoverable and whether its source and
    status are present and current.
 
 The command is read-only. It never edits a project, creates records, or asks an AI provider for
