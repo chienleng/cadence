@@ -47,11 +47,6 @@
 		{ label: 'Archived', value: 'archived' },
 		{ label: 'Unknown', value: 'unknown' }
 	];
-	const priorityOptions = [
-		{ label: 'High', value: 'high' },
-		{ label: 'Normal', value: 'normal' },
-		{ label: 'Low', value: 'low' }
-	];
 	const metricOptions: { label: string; value: MetricFilter }[] = [
 		{ label: 'Needs attention', value: 'attention' },
 		{ label: 'Dirty', value: 'dirty' },
@@ -93,8 +88,7 @@
 			filters.metric ||
 			filters.lifecycles.length ||
 			filters.groups.length ||
-			filters.tags.length ||
-			filters.priorities.length
+			filters.tags.length
 		)
 	);
 
@@ -164,15 +158,6 @@
 			{/if}
 		</div>
 	{/each}
-
-	<div class="filter-section">
-		<SectionLabel as="span">Priority</SectionLabel>
-		<ChipGroup
-			options={priorityOptions}
-			selected={filters.priorities}
-			onchange={(values) => apply({ priorities: values })}
-		/>
-	</div>
 
 	{#if hasFilters}
 		<Button variant="ghost" size="sm" href={page.url.pathname}>Clear all filters</Button>

@@ -1,10 +1,22 @@
 <script lang="ts">
 	import { Badge, Card, CardContent, CardFooter, CardHeader } from '@chienleng/stratum-ui/ui';
+	import { ButtonIcon } from '@chienleng/stratum-ui/forms';
 	import { createSeriesStore, FillGauge, Sparkline } from '@chienleng/stratum-ui/charts';
 	import { lifecycleVariant, projectHref, relativeDate } from '$lib/workspace/format';
 	import type { ProjectSnapshot } from '$lib/workspace/types';
+	import Star from './icons/Star.svelte';
 
-	let { project, demo = false }: { project: ProjectSnapshot; demo?: boolean } = $props();
+	let {
+		project,
+		demo = false,
+		starred,
+		ontogglestar
+	}: {
+		project: ProjectSnapshot;
+		demo?: boolean;
+		starred: boolean;
+		ontogglestar: (projectId: string) => void;
+	} = $props();
 
 	const WEEK_MS = 7 * 86_400_000;
 	const cadence = $derived.by(() => {
@@ -22,6 +34,7 @@
 
 	const ahead = $derived(project.git.ahead ?? 0);
 	const behind = $derived(project.git.behind ?? 0);
+	const href = $derived(projectHref(project.id, demo));
 	const visibleTags = $derived((project.tags ?? []).slice(0, 3));
 	const hiddenTagCount = $derived((project.tags ?? []).length - visibleTags.length);
 	const conventionTitle = $derived(
@@ -31,17 +44,15 @@
 	);
 </script>
 
-<!-- projectHref resolves the route internally. -->
-<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-<a class="project-link" href={projectHref(project.id, demo)}>
+<div class="project-card-shell">
+	<!-- projectHref resolves the route internally. -->
+	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+	<a class="project-link" {href} aria-label={`Open ${project.name} project`}></a>
 	<Card class="project-card">
 		<CardHeader class="project-card-header">
 			<div class="project-top">
 				<span class="project-top-badges">
 					<Badge variant={lifecycleVariant(project.lifecycle)}>{project.lifecycle}</Badge>
-					{#if project.priority === 'high'}
-						<Badge variant="warning">high priority</Badge>
-					{/if}
 				</span>
 				<span class="project-top-badges">
 					{#if project.git.dirtyFiles > 0}
@@ -114,4 +125,17 @@
 			{/if}
 		</CardFooter>
 	</Card>
-</a>
+	<ButtonIcon
+		class={`project-card-star star-button${starred ? ' starred' : ''}`}
+		aria-label={`${starred ? 'Unstar' : 'Star'} ${project.name}`}
+		aria-pressed={starred}
+		title={`${starred ? 'Unstar' : 'Star'} ${project.name}`}
+		onclick={(event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			ontogglestar(project.id);
+		}}
+	>
+		<Star size={16} filled={starred} aria-hidden="true" />
+	</ButtonIcon>
+</div>

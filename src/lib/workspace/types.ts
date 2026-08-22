@@ -6,7 +6,6 @@ export interface ProjectDefinition {
 	group: string;
 	summary: string;
 	lifecycle: Lifecycle;
-	priority?: 'low' | 'normal' | 'high';
 	owners?: string[];
 	tags?: string[];
 }

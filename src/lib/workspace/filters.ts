@@ -10,7 +10,6 @@ export interface FilterState {
 	lifecycles: string[];
 	groups: string[];
 	tags: string[];
-	priorities: string[];
 	metric: MetricFilter | null;
 	view: ProjectView;
 }
@@ -41,7 +40,6 @@ export function parseFilters(params: URLSearchParams): FilterState {
 		lifecycles: list(params, 'lifecycle'),
 		groups: list(params, 'group'),
 		tags: list(params, 'tag'),
-		priorities: list(params, 'priority'),
 		metric: METRICS.has(metric as MetricFilter) ? (metric as MetricFilter) : null,
 		view: params.get('view') === 'table' ? 'table' : 'grouped'
 	};
@@ -52,7 +50,6 @@ export interface FilterPatch {
 	lifecycles?: string[];
 	groups?: string[];
 	tags?: string[];
-	priorities?: string[];
 	metric?: MetricFilter | null;
 	view?: ProjectView | null;
 }
@@ -62,7 +59,6 @@ const PARAM_KEYS = {
 	lifecycles: 'lifecycle',
 	groups: 'group',
 	tags: 'tag',
-	priorities: 'priority',
 	metric: 'metric',
 	view: 'view'
 } as const;
@@ -131,8 +127,7 @@ export function applyFilters(
 			matchesMetric(project, state.metric, now) &&
 			(state.lifecycles.length === 0 || state.lifecycles.includes(project.lifecycle)) &&
 			(state.groups.length === 0 || state.groups.includes(project.group)) &&
-			(state.tags.length === 0 || (project.tags ?? []).some((tag) => state.tags.includes(tag))) &&
-			(state.priorities.length === 0 || state.priorities.includes(project.priority ?? 'normal'))
+			(state.tags.length === 0 || (project.tags ?? []).some((tag) => state.tags.includes(tag)))
 		);
 	});
 }

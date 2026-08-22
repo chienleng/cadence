@@ -51,7 +51,6 @@ describe('parseFilters', () => {
 			lifecycles: ['active', 'paused'],
 			groups: [],
 			tags: ['sveltekit'],
-			priorities: [],
 			metric: 'dirty',
 			view: 'table'
 		});
@@ -94,7 +93,6 @@ describe('applyFilters', () => {
 			name: 'Tide UI',
 			group: 'Libraries',
 			lifecycle: 'maintained',
-			priority: 'low',
 			status: { present: true, updatedAt: '2026-05-01', stale: true }
 		}),
 		project({
@@ -112,10 +110,6 @@ describe('applyFilters', () => {
 	it('filters by facet lists', () => {
 		expect(applyFilters(projects, { ...state, groups: ['Libraries'] }).map((p) => p.id)).toEqual([
 			'b'
-		]);
-		expect(applyFilters(projects, { ...state, priorities: ['normal'] }).map((p) => p.id)).toEqual([
-			'a',
-			'c'
 		]);
 	});
 

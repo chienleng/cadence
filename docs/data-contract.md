@@ -30,7 +30,10 @@ workspace roots resolve from the data repository.
 
 Every recursively discovered `projects/**/project.json` registers one project. Its required fields
 are `path`, `name`, `group`, `summary`, and `lifecycle`. Lifecycle is one of `active`, `maintained`,
-`paused`, `dormant`, `archived`, or `unknown`. Optional fields are `priority`, `owners`, and `tags`.
+`paused`, `dormant`, `archived`, or `unknown`. Optional fields are `owners` and `tags`.
+
+Project stars are a personal display preference stored only in the browser's local storage. They
+are not part of `project.json` or any other durable workspace record.
 
 The declared path must exactly match the containing path below `projects/` and must resolve inside
 the configured workspace. This deliberate redundancy catches accidental moves and unsafe paths.

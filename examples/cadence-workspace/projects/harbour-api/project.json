@@ -5,7 +5,6 @@
 	"group": "Products",
 	"summary": "Typed service for coordinating fictional harbour operations.",
 	"lifecycle": "active",
-	"priority": "normal",
 	"owners": [],
 	"tags": ["example"]
 }

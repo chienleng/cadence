@@ -667,13 +667,24 @@ h2 {
 	gap: var(--su-space-4);
 }
 
+.starred-group .group-heading {
+	border-bottom-color: color-mix(in srgb, var(--su-accent) 45%, var(--su-border));
+}
+
+.project-card-shell {
+	position: relative;
+	border-radius: var(--su-radius-lg);
+}
+
 .project-link {
-	display: block;
+	position: absolute;
+	inset: 0;
+	z-index: 1;
 	border-radius: var(--su-radius-lg);
 	outline: none;
 }
 
-.project-link:focus-visible {
+.project-link:focus-visible + .project-card {
 	box-shadow: 0 0 0 var(--su-focus-ring-width) var(--su-focus-ring);
 }
 
@@ -685,10 +696,44 @@ h2 {
 		box-shadow var(--su-duration-fast) var(--su-ease);
 }
 
-.project-link:hover .project-card {
+.project-card-shell:hover .project-card {
 	transform: translateY(-2px);
 	border-color: var(--su-border-strong);
 	box-shadow: var(--su-shadow-md);
+}
+
+:is(.project-card-shell, .star-column) .star-button {
+	position: relative;
+	z-index: 2;
+	padding: var(--su-space-1);
+	border-color: transparent;
+	background: transparent;
+	color: var(--su-text-muted);
+}
+
+:is(.project-card-shell, .star-column) .star-button:hover {
+	background: var(--su-surface-muted);
+	color: var(--su-text);
+}
+
+:is(.project-card-shell, .star-column) .star-button.starred {
+	color: var(--su-accent);
+}
+
+.project-card-shell > .project-card-star {
+	position: absolute;
+	top: var(--su-space-4);
+	right: var(--su-space-4);
+	z-index: 3;
+}
+
+.project-card-shell .project-top {
+	padding-right: calc(2rem + var(--su-space-2));
+}
+
+.star-column {
+	width: 1%;
+	white-space: nowrap;
 }
 
 .table-commit-subject {
