@@ -1,20 +1,29 @@
 import { execFile } from 'node:child_process';
-import type { Dirent } from 'node:fs';
-import { access, readFile, readdir } from 'node:fs/promises';
+import { access } from 'node:fs/promises';
+import {
+	containedPath,
+	containedDirectory,
+	findFiles,
+	readBoundedText,
+	readMarkdown
+} from '../../../scripts/lib/files.mjs';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { promisify } from 'node:util';
 import MarkdownIt from 'markdown-it';
+import { EMPTY_GITHUB, githubTotals, staleGithub } from '$lib/workspace/data-quality';
 import { weeklyCommitBuckets } from '$lib/workspace/cadence';
+import { concurrencyLimit, mapConcurrent } from './concurrency';
+import { selectRecord } from '$lib/workspace/navigation';
 import { staleStatus, statusDate } from '$lib/workspace/freshness';
 import type {
 	ConventionCheck,
 	GithubRelease,
 	GithubSnapshot,
 	GitSnapshot,
+	PreviewSelection,
 	ProjectDefinition,
 	ProjectDetail,
 	ProjectDocument,
-	ProjectRecord,
 	ProjectRecordKind,
 	ProjectSnapshot,
 	RecentCommit,
@@ -25,6 +34,8 @@ import type {
 } from '$lib/workspace/types';
 
 const execFileAsync = promisify(execFile);
+// One gate for all local requests, not one limit per project or scan.
+const runGit = concurrencyLimit(4);
 const APP_ROOT = process.cwd();
 const markdown = new MarkdownIt({
 	html: false,
@@ -34,7 +45,7 @@ const markdown = new MarkdownIt({
 const EMPTY_GIT: GitSnapshot = {
 	isRepository: false,
 	branch: null,
-	dirtyFiles: 0,
+	dirtyFiles: null,
 	lastCommitAt: null,
 	lastCommitHash: null,
 	lastCommitSubject: null,
@@ -43,14 +54,6 @@ const EMPTY_GIT: GitSnapshot = {
 	ahead: null,
 	behind: null,
 	commitsByWeek: []
-};
-const ABSENT_GITHUB: GithubSnapshot = {
-	state: 'absent',
-	fetchedAt: null,
-	isPrivate: null,
-	openIssues: null,
-	openPullRequests: null,
-	latestRelease: null
 };
 
 async function exists(path: string): Promise<boolean> {
@@ -89,10 +92,11 @@ function projectsRoot(): string {
 
 async function workspaceRoot(config: WorkspaceConfig): Promise<string> {
 	const root = resolve(dataRoot(), config.workspaceRoot);
-	if (!(await exists(root))) {
+	const canonical = await containedDirectory(root, root);
+	if (!canonical) {
 		throw new WorkspaceDataError('invalid', dataRoot(), [`Workspace root does not exist: ${root}`]);
 	}
-	return root;
+	return canonical;
 }
 
 function projectDirectory(root: string, projectPath: string): string {
@@ -116,15 +120,14 @@ function projectRecordsDirectory(projectPath: string): string {
 
 export async function loadWorkspaceConfig(): Promise<WorkspaceConfig> {
 	const path = resolve(dataRoot(), 'cadence.config.json');
-	let raw: string;
-	try {
-		raw = await readFile(path, 'utf8');
-	} catch (error) {
-		if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
-			throw new WorkspaceDataError('missing', dataRoot(), [`Missing ${path}`]);
-		}
-		throw error;
-	}
+	if (!(await exists(path)))
+		throw new WorkspaceDataError('missing', dataRoot(), [`Missing ${path}`]);
+	const source = await readBoundedText(dataRoot(), path);
+	if (!source || source.truncated)
+		throw new WorkspaceDataError('invalid', dataRoot(), [
+			'cadence.config.json is unreadable, oversized or outside the data repository.'
+		]);
+	const raw = source.text;
 
 	let config: WorkspaceConfig;
 	try {
@@ -151,26 +154,25 @@ const LIFECYCLES = new Set(['active', 'maintained', 'paused', 'dormant', 'archiv
 export async function loadProjectDefinitions(): Promise<ProjectDefinition[]> {
 	const root = projectsRoot();
 	if (!(await exists(root))) return [];
-	const paths: string[] = [];
-
-	async function visit(directory: string, depth: number): Promise<void> {
-		if (depth > 12) return;
-		const entries = await readdir(directory, { withFileTypes: true });
-		for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-			if (entry.isSymbolicLink() || entry.name.startsWith('.')) continue;
-			const absolute = resolve(directory, entry.name);
-			if (entry.isDirectory()) await visit(absolute, depth + 1);
-			else if (entry.isFile() && entry.name === 'project.json') paths.push(absolute);
-		}
+	if (!(await containedDirectory(dataRoot(), root))) {
+		throw new WorkspaceDataError('invalid', dataRoot(), [
+			'projects/ resolves outside the data repository.'
+		]);
 	}
-
-	await visit(root, 0);
+	const paths = (
+		await findFiles(dataRoot(), root, {
+			accept: (path) => path.split(sep).at(-1) === 'project.json',
+			limit: 10_000
+		})
+	).map((path) => resolve(root, path));
 	const issues: string[] = [];
 	const projects: ProjectDefinition[] = [];
 	for (const path of paths) {
 		const expectedPath = relative(root, dirname(path)).split(sep).join('/');
 		try {
-			const project = JSON.parse(await readFile(path, 'utf8')) as ProjectDefinition;
+			const source = await readBoundedText(dataRoot(), path);
+			if (!source || source.truncated) throw new Error('Unreadable metadata');
+			const project = JSON.parse(source.text) as ProjectDefinition;
 			if (
 				typeof project.path !== 'string' ||
 				typeof project.name !== 'string' ||
@@ -208,11 +210,14 @@ export async function loadProjectDefinitions(): Promise<ProjectDefinition[]> {
 
 async function git(directory: string, args: string[]): Promise<string | null> {
 	try {
-		const { stdout } = await execFileAsync('git', ['-C', directory, ...args], {
-			encoding: 'utf8',
-			timeout: 5_000,
-			maxBuffer: 1024 * 1024
-		});
+		const { stdout } = await runGit(() =>
+			execFileAsync('git', ['-C', directory, ...args], {
+				encoding: 'utf8',
+				timeout: 5_000,
+				maxBuffer: 1024 * 1024,
+				env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' }
+			})
+		);
 		return stdout.trim();
 	} catch {
 		return null;
@@ -256,8 +261,8 @@ async function inspectGit(directory: string): Promise<GitSnapshot> {
 
 	return {
 		isRepository: true,
-		branch: branch || null,
-		dirtyFiles: status ? status.split('\n').filter(Boolean).length : 0,
+		branch,
+		dirtyFiles: status === null ? null : status.split('\n').filter(Boolean).length,
 		lastCommitAt,
 		lastCommitHash,
 		lastCommitSubject,
@@ -265,7 +270,8 @@ async function inspectGit(directory: string): Promise<GitSnapshot> {
 		githubUrl: githubUrl(remoteUrl),
 		ahead: commitCount(ahead),
 		behind: commitCount(behind),
-		commitsByWeek: weeklyCommitBuckets(recentDates?.split('\n').filter(Boolean) ?? [])
+		commitsByWeek:
+			recentDates === null ? [] : weeklyCommitBuckets(recentDates.split('\n').filter(Boolean))
 	};
 }
 
@@ -284,31 +290,46 @@ async function detectPackageManager(directory: string): Promise<ProjectSnapshot[
 }
 
 async function markdownCount(directory: string, projectPath: string): Promise<number> {
-	const roots = [resolve(directory, 'docs'), projectRecordsDirectory(projectPath)];
-	let count = 0;
-	for (const root of roots) {
-		if (!(await exists(root))) continue;
-		try {
-			const entries = await readdir(root, { recursive: true, withFileTypes: true });
-			count += entries.filter((entry) => entry.isFile() && entry.name.endsWith('.md')).length;
-		} catch {
-			// A disappearing or unreadable documentation directory should not break the dashboard.
-		}
-	}
-	return count;
+	const recordsRoot = await containedDirectory(dataRoot(), projectRecordsDirectory(projectPath));
+	const [documents, records] = await Promise.all([
+		findFiles(directory, resolve(directory, 'docs')),
+		recordsRoot ? findFiles(recordsRoot, recordsRoot) : []
+	]);
+	return documents.length + records.length;
 }
 
 async function conventionChecks(
 	directory: string,
-	projectPath: string
+	projectPath: string,
+	status: Promise<StatusFreshness>
 ): Promise<ConventionCheck[]> {
 	const recordsDirectory = projectRecordsDirectory(projectPath);
 	return Promise.all([
-		check('readme', 'README', exists(resolve(directory, 'README.md'))),
-		check('agents', 'Agent guide', exists(resolve(directory, 'AGENTS.md'))),
-		check('docs', 'Documentation', exists(resolve(directory, 'docs'))),
-		check('metadata', 'Project metadata', exists(resolve(recordsDirectory, 'project.json'))),
-		check('status', 'Current status', exists(resolve(recordsDirectory, 'STATUS.md')))
+		check(
+			'readme',
+			'README',
+			containedPath(directory, resolve(directory, 'README.md')).then(Boolean)
+		),
+		check(
+			'agents',
+			'Agent guide',
+			containedPath(directory, resolve(directory, 'AGENTS.md')).then(Boolean)
+		),
+		check(
+			'docs',
+			'Documentation',
+			containedDirectory(directory, resolve(directory, 'docs')).then(Boolean)
+		),
+		check(
+			'metadata',
+			'Project metadata',
+			containedPath(dataRoot(), resolve(recordsDirectory, 'project.json')).then(Boolean)
+		),
+		check(
+			'status',
+			'Current status',
+			status.then((status) => status.present)
+		)
 	]);
 }
 
@@ -320,18 +341,11 @@ async function check(
 	return { key, label, present: await result };
 }
 
-async function optionalText(path: string): Promise<string | null> {
-	try {
-		return await readFile(path, 'utf8');
-	} catch {
-		return null;
-	}
-}
-
 /** Status records live in the data repository, so this works even when the
  *  project directory itself is missing locally. */
 async function statusFreshness(projectPath: string): Promise<StatusFreshness> {
-	const text = await optionalText(resolve(projectRecordsDirectory(projectPath), 'STATUS.md'));
+	const root = await containedDirectory(dataRoot(), projectRecordsDirectory(projectPath));
+	const text = root ? await readMarkdown(root, resolve(root, 'STATUS.md')) : null;
 	if (text === null) return { present: false, updatedAt: null, stale: false };
 	const updatedAt = statusDate(text);
 	return { present: true, updatedAt, stale: staleStatus(updatedAt) };
@@ -356,41 +370,60 @@ function normalizeRelease(value: unknown): GithubRelease | null {
 	};
 }
 
-/** GitHub data from `pnpm refresh`'s cache, keyed by project path. Any kind
- *  of absence (no cache, unreadable, skipped/failed entry) yields no entry —
- *  the dashboard simply omits GitHub facts. */
-async function readGithubCache(): Promise<Map<string, GithubSnapshot>> {
+/** Preserve missing and failed cache states instead of treating them as zero work. */
+async function readGithubCache(): Promise<{
+	byPath: Map<string, GithubSnapshot>;
+	fallback: GithubSnapshot;
+}> {
 	const byPath = new Map<string, GithubSnapshot>();
-	const raw = await optionalText(githubCachePath());
-	if (!raw) return byPath;
+	const path = githubCachePath();
+	if (!(await exists(path))) return { byPath, fallback: EMPTY_GITHUB };
+	const source = await readBoundedText(dirname(path), path, 8 * 1024 * 1024);
+	if (!source || source.truncated)
+		return { byPath, fallback: { ...EMPTY_GITHUB, state: 'unavailable' } };
+	const raw = source.text;
+
 	try {
-		const cache = JSON.parse(raw) as {
-			schemaVersion?: unknown;
-			generatedAt?: unknown;
-			projects?: unknown;
-		};
-		if (cache.schemaVersion !== 1 || !Array.isArray(cache.projects)) return byPath;
-		const fetchedAt = typeof cache.generatedAt === 'string' ? cache.generatedAt : null;
-		for (const entry of cache.projects as Array<Record<string, unknown>>) {
+		const cache = JSON.parse(raw);
+		if (cache?.schemaVersion !== 1 || !Array.isArray(cache.projects))
+			throw new Error('Invalid cache');
+		const fetchedAt =
+			typeof cache.generatedAt === 'string' && Number.isFinite(Date.parse(cache.generatedAt))
+				? cache.generatedAt
+				: null;
+		for (const entry of cache.projects) {
 			if (typeof entry?.path !== 'string') continue;
-			const github = entry.github as Record<string, unknown> | undefined;
-			if (github?.state !== 'updated') continue;
-			const issues = github.issues as { totalCount?: unknown } | undefined;
-			const pullRequests = github.pullRequests as { totalCount?: unknown } | undefined;
+			const github = entry.github;
+			const base = { ...EMPTY_GITHUB, fetchedAt };
+			if (github?.state !== 'updated') {
+				const state =
+					github?.state === 'failed'
+						? 'failed'
+						: github?.state === 'skipped'
+							? 'absent'
+							: 'unavailable';
+				byPath.set(entry.path, {
+					...base,
+					state,
+					fetchedAt: state === 'absent' ? null : fetchedAt
+				});
+				continue;
+			}
+			const count = (value: unknown): number | null =>
+				typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
 			byPath.set(entry.path, {
-				state: 'ok',
+				state: staleGithub(fetchedAt) ? 'stale' : 'ok',
 				fetchedAt,
 				isPrivate: typeof github.isPrivate === 'boolean' ? github.isPrivate : null,
-				openIssues: typeof issues?.totalCount === 'number' ? issues.totalCount : null,
-				openPullRequests:
-					typeof pullRequests?.totalCount === 'number' ? pullRequests.totalCount : null,
+				openIssues: count(github.issues?.totalCount),
+				openPullRequests: count(github.pullRequests?.totalCount),
 				latestRelease: normalizeRelease(github.latestRelease)
 			});
 		}
+		return { byPath, fallback: EMPTY_GITHUB };
 	} catch {
-		// An unreadable cache is the same as no cache.
+		return { byPath: new Map(), fallback: { ...EMPTY_GITHUB, state: 'unavailable' } };
 	}
-	return byPath;
 }
 
 async function inspectProject(
@@ -398,9 +431,14 @@ async function inspectProject(
 	project: ProjectDefinition,
 	github: GithubSnapshot
 ): Promise<ProjectSnapshot> {
-	const directory = projectDirectory(root, project.path);
-	const projectExists = await exists(directory);
-	if (!projectExists) {
+	const declared = projectDirectory(root, project.path);
+	if (!(await containedPath(root, declared, { allowMissing: true }))) {
+		throw new WorkspaceDataError('invalid', dataRoot(), [
+			`Project path resolves outside workspaceRoot or is inaccessible: ${project.path}`
+		]);
+	}
+	const directory = await containedDirectory(root, declared);
+	if (!directory) {
 		return {
 			...project,
 			id: projectId(project.path),
@@ -415,12 +453,13 @@ async function inspectProject(
 		};
 	}
 
+	const freshness = statusFreshness(project.path);
 	const [packageManager, convention, documentCount, gitSnapshot, status] = await Promise.all([
 		detectPackageManager(directory),
-		conventionChecks(directory, project.path),
+		conventionChecks(directory, project.path, freshness),
 		markdownCount(directory, project.path),
 		inspectGit(directory),
-		statusFreshness(project.path)
+		freshness
 	]);
 	const complete = convention.filter((item) => item.present).length;
 
@@ -433,7 +472,11 @@ async function inspectProject(
 		conventionScore: Math.round((complete / convention.length) * 100),
 		documentCount,
 		git: gitSnapshot,
-		github,
+		github:
+			github.state === 'absent' &&
+			(!gitSnapshot.isRepository || (gitSnapshot.remoteUrl && !gitSnapshot.githubUrl))
+				? { ...EMPTY_GITHUB, state: 'not-applicable' }
+				: github,
 		status
 	};
 }
@@ -445,10 +488,8 @@ export async function scanWorkspace(): Promise<WorkspaceSnapshot> {
 		loadProjectDefinitions(),
 		readGithubCache()
 	]);
-	const projects = await Promise.all(
-		definitions.map((project) =>
-			inspectProject(root, project, githubByPath.get(project.path) ?? ABSENT_GITHUB)
-		)
+	const projects = await mapConcurrent(definitions, 4, (project) =>
+		inspectProject(root, project, githubByPath.byPath.get(project.path) ?? githubByPath.fallback)
 	);
 
 	return {
@@ -460,16 +501,13 @@ export async function scanWorkspace(): Promise<WorkspaceSnapshot> {
 		summary: {
 			total: projects.length,
 			active: projects.filter((project) => project.lifecycle === 'active').length,
-			dirty: projects.filter((project) => project.git.dirtyFiles > 0).length,
+			dirty: projects.filter((project) => (project.git.dirtyFiles ?? 0) > 0).length,
 			missing: projects.filter((project) => !project.exists).length,
 			fullyStandardized: projects.filter((project) => project.conventionScore === 100).length,
 			behindUpstream: projects.filter((project) => (project.git.behind ?? 0) > 0).length,
 			staleStatus: projects.filter((project) => project.status.stale).length,
-			openIssues: projects.reduce((total, project) => total + (project.github.openIssues ?? 0), 0),
-			openPullRequests: projects.reduce(
-				(total, project) => total + (project.github.openPullRequests ?? 0),
-				0
-			)
+			openIssues: githubTotals(projects).issues.value,
+			openPullRequests: githubTotals(projects).prs.value
 		}
 	};
 }
@@ -516,116 +554,60 @@ function markdownTitle(source: string, fallback: string): string {
 	return heading || fallback;
 }
 
-const SKIPPED_DOCUMENT_DIRECTORIES = new Set([
-	'.git',
-	'.next',
-	'.nuxt',
-	'.output',
-	'.svelte-kit',
-	'.turbo',
-	'.vite',
-	'.wrangler',
-	'build',
-	'coverage',
-	'dist',
-	'node_modules',
-	'target',
-	'vendor'
-]);
-
-async function findMarkdownFiles(directory: string, limit = 200): Promise<string[]> {
-	const paths: string[] = [];
-
-	async function visit(current: string, depth: number): Promise<void> {
-		if (paths.length >= limit || depth > 12) return;
-		let entries: Dirent[];
-		try {
-			entries = await readdir(current, { withFileTypes: true });
-		} catch {
-			return;
-		}
-
-		entries.sort((a, b) => a.name.localeCompare(b.name));
-		for (const entry of entries) {
-			if (paths.length >= limit) break;
-			const absolutePath = resolve(current, entry.name);
-			if (
-				entry.isDirectory() &&
-				!entry.name.startsWith('.') &&
-				!SKIPPED_DOCUMENT_DIRECTORIES.has(entry.name)
-			) {
-				await visit(absolutePath, depth + 1);
-			} else if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')) {
-				paths.push(relative(directory, absolutePath));
-			}
-		}
-	}
-
-	await visit(directory, 0);
-	return paths;
+/** Lists read only a 4 KiB title prefix; full previews are read after selection. */
+async function listDocuments(directory: string): Promise<ProjectDetail['documents']> {
+	const paths = await findFiles(directory, directory);
+	const documents = await mapConcurrent(paths, 4, async (path) => {
+		const source = await readBoundedText(directory, resolve(directory, path), 4096);
+		if (!source) return null;
+		return {
+			path,
+			title: markdownTitle(source.text, fileTitle(path)),
+			kind: documentKind(path)
+		};
+	});
+	return documents.filter((document) => document !== null);
 }
 
-async function listDocuments(directory: string): Promise<ProjectDocument[]> {
-	const paths = await findMarkdownFiles(directory);
-
-	return Promise.all(
-		paths
-			.sort((a, b) => a.localeCompare(b))
-			.map(async (path): Promise<ProjectDocument> => {
-				const source = (await readFile(resolve(directory, path), 'utf8')).slice(0, 512 * 1024);
-				const fallback = path.split('/').at(-1)?.replace(/\.md$/, '').replace(/[-_]/g, ' ') ?? path;
-				return {
-					path,
-					title: markdownTitle(source, fallback),
-					kind: documentKind(path),
-					html: markdown.render(source)
-				};
-			})
-	);
+function fileTitle(path: string): string {
+	return path.split(sep).at(-1)!.replace(/\.md$/i, '').replace(/[-_]/g, ' ');
 }
 
 function githubFileUrl(gitSnapshot: GitSnapshot, path: string): string | null {
 	if (!gitSnapshot.githubUrl) return null;
 	const normalizedPath = path.split(sep).join('/');
-	const ref = gitSnapshot.branch ?? 'HEAD';
+	const ref = gitSnapshot.branch || 'HEAD';
 	return encodeURI(`${gitSnapshot.githubUrl}/blob/${ref}/${normalizedPath}`);
 }
 
 async function loadProjectRecords(
 	projectPath: string,
 	cadenceGit: GitSnapshot
-): Promise<ProjectRecord[]> {
-	const projectRoot = projectRecordsDirectory(projectPath);
-	if (!(await exists(projectRoot))) return [];
-
-	const entries = await readdir(projectRoot, { recursive: true, withFileTypes: true });
-	const records = await Promise.all(
-		entries
-			.filter((entry) => entry.isFile() && entry.name.endsWith('.md') && entry.name !== 'README.md')
-			.slice(0, 200)
-			.map(async (entry): Promise<ProjectRecord | null> => {
-				const absolutePath = resolve(entry.parentPath, entry.name);
-				const path = relative(dataRoot(), absolutePath);
-				const kind = projectRecordKind(path);
-				if (!kind) return null;
-
-				// Project records are small working documents. Cap reads so one accidental
-				// large file cannot overwhelm the detail page.
-				const source = (await readFile(absolutePath, 'utf8')).slice(0, 512 * 1024);
-				const fallback = entry.name.replace(/\.md$/, '').replace(/[-_]/g, ' ');
-				return {
-					path,
-					title: markdownTitle(source, fallback),
-					kind,
-					html: markdown.render(source),
-					sourceUrl: githubFileUrl(cadenceGit, path)
-				};
-			})
-	);
+): Promise<ProjectDetail['records']> {
+	const projectRoot = await containedDirectory(dataRoot(), projectRecordsDirectory(projectPath));
+	if (!projectRoot) return [];
+	const paths = await findFiles(projectRoot, projectRoot, {
+		accept: (path) =>
+			path.endsWith('.md') &&
+			path.split(sep).at(-1) !== 'README.md' &&
+			projectRecordKind(`projects/${projectPath}/${path}`) !== null
+	});
+	const records = await mapConcurrent(paths, 4, async (recordPath) => {
+		const path = `projects/${projectPath}/${recordPath.split(sep).join('/')}`;
+		const source = await readBoundedText(projectRoot, resolve(projectRoot, recordPath), 4096);
+		const kind = projectRecordKind(path);
+		if (!source || !kind) return null;
+		return {
+			path,
+			title: markdownTitle(source.text, fileTitle(recordPath)),
+			kind,
+			sourceUrl: githubFileUrl(cadenceGit, path)
+		};
+	});
 
 	const kindOrder: ProjectRecordKind[] = ['status', 'plan', 'decision', 'meeting', 'note', 'inbox'];
 	return records
-		.filter((record): record is ProjectRecord => record !== null)
+		.filter((record) => record !== null)
 		.sort(
 			(a, b) =>
 				kindOrder.indexOf(a.kind) - kindOrder.indexOf(b.kind) || a.path.localeCompare(b.path)
@@ -641,16 +623,70 @@ async function recentCommits(directory: string): Promise<RecentCommit[]> {
 	});
 }
 
-export async function getProjectDetail(id: string): Promise<ProjectDetail | null> {
-	const snapshot = await scanWorkspace();
-	const project = snapshot.projects.find((candidate) => candidate.id === id);
-	if (!project || !project.exists) return null;
-	const directory = projectDirectory(snapshot.root, project.path);
+/** Read only a discovered selection; never turn URL input directly into a file read. */
+async function selectedPreview<T extends { path: string }>(
+	items: T[],
+	selected: T | undefined,
+	read: (item: T) => Promise<string | null>
+): Promise<(T & { html: string }) | null> {
+	if (!selected) return null;
+	const source = await read(selected);
+	if (source !== null) return { ...selected, html: markdown.render(source) };
+	// Optional files may disappear between discovery and selection. Remove the stale
+	// entry and try the next available default, allowing the UI to explain fallback.
+	items.splice(items.indexOf(selected), 1);
+	return selectedPreview(items, items[0], read);
+}
+
+async function recordSourceGit(): Promise<GitSnapshot> {
+	if (!(await exists(resolve(dataRoot(), '.git')))) return { ...EMPTY_GIT };
+	const [branch, remote] = await Promise.all([
+		git(dataRoot(), ['branch', '--show-current']),
+		git(dataRoot(), ['remote', 'get-url', 'origin'])
+	]);
+	return { ...EMPTY_GIT, branch, githubUrl: githubUrl(remote) };
+}
+
+export async function getProjectDetail(
+	id: string,
+	selection: PreviewSelection = {}
+): Promise<ProjectDetail | null> {
+	const config = await loadWorkspaceConfig();
+	const [root, definitions] = await Promise.all([workspaceRoot(config), loadProjectDefinitions()]);
+	const definition = definitions.find((candidate) => projectId(candidate.path) === id);
+	if (!definition) return null;
+	const github = await readGithubCache();
+	const project = await inspectProject(
+		root,
+		definition,
+		github.byPath.get(definition.path) ?? github.fallback
+	);
+	const directory = await containedDirectory(root, projectDirectory(root, project.path));
+	// Source links need only a branch and remote, not a full Git/status/history scan.
 	const [documents, cadenceGit, commits] = await Promise.all([
-		listDocuments(directory),
-		inspectGit(dataRoot()),
-		recentCommits(directory)
+		directory ? listDocuments(directory) : [],
+		recordSourceGit(),
+		directory ? recentCommits(directory) : []
 	]);
 	const records = await loadProjectRecords(project.path, cadenceGit);
-	return { project, documents, records, recentCommits: commits };
+	const recordRoot = await containedDirectory(dataRoot(), projectRecordsDirectory(project.path));
+	const [selectedDocument, selectedRecord] = await Promise.all([
+		selectedPreview(
+			documents,
+			documents.find((item) => item.path === selection.document) ??
+				documents.find((item) => item.kind === 'readme') ??
+				documents[0],
+			(item) =>
+				directory ? readMarkdown(directory, resolve(directory, item.path)) : Promise.resolve(null)
+		),
+		selectedPreview(records, selectRecord(records, selection.record ?? null), (item) =>
+			recordRoot
+				? readMarkdown(
+						recordRoot,
+						resolve(recordRoot, item.path.slice(`projects/${project.path}/`.length))
+					)
+				: Promise.resolve(null)
+		)
+	]);
+	return { project, documents, records, selectedDocument, selectedRecord, recentCommits: commits };
 }

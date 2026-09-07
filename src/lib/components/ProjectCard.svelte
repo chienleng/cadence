@@ -1,4 +1,12 @@
 <script lang="ts">
+	import { page } from '$app/state';
+	import GithubStatus from './GithubStatus.svelte';
+	import {
+		gitBranchLabel,
+		githubHasData,
+		unknownWorkingTree,
+		upstreamLabel
+	} from '$lib/workspace/data-quality';
 	import { Badge, Card, CardContent, CardFooter, CardHeader } from '@chienleng/stratum-ui/ui';
 	import { ButtonIcon } from '@chienleng/stratum-ui/forms';
 	import { createSeriesStore, FillGauge, Sparkline } from '@chienleng/stratum-ui/charts';
@@ -34,7 +42,7 @@
 
 	const ahead = $derived(project.git.ahead ?? 0);
 	const behind = $derived(project.git.behind ?? 0);
-	const href = $derived(projectHref(project.id, demo));
+	const href = $derived(projectHref(project.id, demo, page.url.searchParams));
 	const visibleTags = $derived((project.tags ?? []).slice(0, 3));
 	const hiddenTagCount = $derived((project.tags ?? []).length - visibleTags.length);
 	const conventionTitle = $derived(
@@ -55,10 +63,15 @@
 					<Badge variant={lifecycleVariant(project.lifecycle)}>{project.lifecycle}</Badge>
 				</span>
 				<span class="project-top-badges">
-					{#if project.git.dirtyFiles > 0}
+					{#if (project.git.dirtyFiles ?? 0) > 0}
 						<Badge variant="danger">{project.git.dirtyFiles} changed</Badge>
 					{/if}
-					{#if project.status.stale}
+					{#if unknownWorkingTree(project)}
+						<Badge variant="warning">Git status unknown</Badge>
+					{/if}
+					{#if project.lifecycle === 'active' && !project.status.present}
+						<Badge variant="warning">missing status</Badge>
+					{:else if project.status.stale}
 						<Badge variant="warning">stale status</Badge>
 					{/if}
 				</span>
@@ -68,7 +81,11 @@
 		</CardHeader>
 		<CardContent class="project-card-content">
 			{#if cadence}
-				<div class="card-cadence" aria-label="Commits per week, last 12 weeks">
+				<div
+					class="card-cadence"
+					role="img"
+					aria-label={`Commits per week, oldest to newest, last 12 weeks: ${project.git.commitsByWeek.join(', ')}`}
+				>
 					<Sparkline chart={cadence} height={26} showArea strokeWidth={1.5} />
 				</div>
 			{/if}
@@ -79,17 +96,16 @@
 				</p>
 			{/if}
 			<div class="card-facts">
-				<span>{project.git.branch ?? (project.git.isRepository ? 'detached' : 'no git')}</span>
+				<span>{gitBranchLabel(project)}</span>
 				{#if ahead > 0 || behind > 0}
 					<span class="card-divergence">
-						{#if ahead > 0}↑{ahead}{/if}
-						{#if behind > 0}↓{behind}{/if}
+						{upstreamLabel(project.git)}
 					</span>
 				{/if}
-				{#if project.github.state === 'ok' && project.github.openIssues !== null}
+				{#if githubHasData(project.github) && project.github.openIssues !== null}
 					<span>{project.github.openIssues} issues</span>
 				{/if}
-				{#if project.github.state === 'ok' && project.github.openPullRequests !== null}
+				{#if githubHasData(project.github) && project.github.openPullRequests !== null}
 					<span>{project.github.openPullRequests} PRs</span>
 				{/if}
 				{#if project.documentCount > 0}
@@ -99,6 +115,9 @@
 					<span>{project.packageManager}</span>
 				{/if}
 			</div>
+			{#if project.github.state !== 'ok' || project.github.openIssues === null || project.github.openPullRequests === null}
+				<GithubStatus github={project.github} />
+			{/if}
 			{#if visibleTags.length > 0}
 				<div class="tag-row">
 					{#each visibleTags as tag (tag)}

@@ -8,28 +8,79 @@
 <main class="shell docs-shell">
 	<section class="hero" aria-labelledby="overview">
 		<p class="eyebrow">Setup</p>
-		<h1 id="overview">See every project in one place without uploading your workspace.</h1>
+		<h1 id="overview">Bring your projects into Cadence.</h1>
 		<p class="lede">
-			Cadence is a dashboard you run on your own computer. It reads project information from the
-			folders you choose and turns it into a visual view of everything you are working on — status,
-			activity, plans, and notes at a glance. A separate <code>cadence-workspace</code> folder keeps your
-			project notes and setup, and the whole structure is built for working alongside your own AI agent:
-			the agent you already use reads the same files and helps you keep them current. Your real dashboard
-			stays on your machine by default.
+			Run Cadence on your computer to read status, plans, notes and Git activity in one place. Your
+			repositories stay where they are. A separate <code>cadence-workspace</code> folder holds your project
+			records, which your own coding agent can also read and maintain.
 		</p>
 	</section>
-	<Alert variant="success" title="Keep one folder safe: cadence-workspace.">
-		Back it up with a private Git repository or a reliable backup of your computer. Cadence itself
-		can always be downloaded again from GitHub.
-	</Alert>
+	<Card>
+		<CardHeader>
+			<h2 id="local-setup">Set up your local dashboard</h2>
+			<p>You need Git, Node.js 22 or newer, and pnpm.</p>
+		</CardHeader>
+		<CardContent class="prose-stack">
+			<p>From the folder that contains your projects, install Cadence:</p>
+			<pre class="command-block"><code
+					>git clone https://github.com/chienleng/cadence.git
+cd cadence
+pnpm install</code
+				></pre>
+			<ol>
+				<li>
+					Follow <a
+						href="https://github.com/chienleng/cadence/blob/main/docs/setup-with-ai.md"
+						target="_blank"
+						rel="external noreferrer">the workspace setup guide</a
+					>
+					to create
+					<code>cadence-workspace</code> beside the app. Ask your coding agent to help or adapt the example
+					files yourself.
+				</li>
+				<li>
+					Review your project paths, names and status. Cadence registers projects through
+					<code>projects/**/project.json</code>; it does not register every repository
+					automatically.
+				</li>
+				<li>
+					Add the workspace context instruction to your shared <code>AGENTS.md</code> and check that your
+					agent can find it from inside a project.
+				</li>
+			</ol>
+			<p>Then validate the data and start the dashboard from the Cadence checkout:</p>
+			<pre class="command-block"><code
+					>pnpm validate
+pnpm context --audit
+pnpm refresh --local-only
+pnpm dev</code
+				></pre>
+			<p>
+				Open <code>http://cadence.localhost:7613/projects</code>. The local-only refresh reads Git
+				without querying GitHub. To include GitHub counts, authenticate the <code>gh</code> CLI, run
+				<code>pnpm refresh</code>, then reload.
+			</p>
+			<p>
+				Cadence reads your records without changing them. You or your agent maintain the files;
+				actionable work stays in GitHub Issues.
+			</p>
+			<Button
+				href="https://github.com/chienleng/cadence/tree/main/docs"
+				target="_blank"
+				rel="external noreferrer"
+			>
+				Read the full documentation
+			</Button>
+		</CardContent>
+	</Card>
 	<Card class="docs-structure-card">
 		<CardHeader>
-			<p class="eyebrow">Workspace shape</p>
-			<h2 id="workspace-shape">Keep project code and Cadence notes separate.</h2>
+			<p class="eyebrow">Workspace files</p>
+			<h2 id="workspace-shape">Where everything lives</h2>
 			<p>
-				Each project stays in its own Git repository (a folder tracked by Git). Cadence keeps
-				status, plans, and other workspace notes in a separate <code>cadence-workspace</code> repository.
-				The fictional demo below shows how those folders fit together.
+				Source repositories hold code and technical documentation. The private
+				<code>cadence-workspace</code> folder holds registration, status, plans and other records. This
+				fictional example shows how the paths line up.
 			</p>
 		</CardHeader>
 		<CardContent class="prose-stack">
@@ -64,21 +115,8 @@
 					Project paths below <code>projects/</code> mirror their paths in the workspace.
 				</figcaption>
 			</figure>
-			<ul class="structure-notes">
-				<li>
-					<strong>Source repositories</strong> own code, <code>README.md</code>,
-					<code>AGENTS.md</code>, and technical documentation.
-				</li>
-				<li>
-					<strong>Cadence workspace data</strong> owns registration, current status, plans, decisions,
-					meetings, notes, and inbox records.
-				</li>
-				<li>
-					<strong>GitHub Issues</strong> remain the source of truth for actionable work.
-				</li>
-			</ul>
 			<div class="docs-structure-actions">
-				<Button href={resolve('/demo')} variant="primary">Explore this demo workspace</Button>
+				<Button href={resolve('/demo')} variant="primary">Explore the fictional demo</Button>
 				<Button
 					href="https://github.com/chienleng/cadence/tree/main/examples/cadence-workspace"
 					variant="outline"
@@ -91,114 +129,59 @@
 	<section class="hosting-guide" aria-labelledby="privacy-and-hosting">
 		<div class="section-heading">
 			<div>
-				<p class="eyebrow">Privacy and hosting</p>
-				<h2 id="privacy-and-hosting">Keep it local, or share a safe demo.</h2>
+				<p class="eyebrow">Privacy and backup</p>
+				<h2 id="privacy-and-hosting">Keep your workspace private and backed up</h2>
 			</div>
 		</div>
 		<p class="hosting-lede">
-			For most people, the local setup is the right choice. If you want a public website, publish a
-			separate demo containing only information you have checked and approved, not your real local
-			dashboard.
+			Your normal dashboard stays on your computer. The hosted demo is a separate build with only
+			fictional data and no access to your workspace.
 		</p>
 		<div class="hosting-options">
 			<Card class="hosting-option recommended-option">
 				<CardHeader>
 					<div class="hosting-option-title">
-						<h3>Local and private</h3>
-						<Badge variant="success">Recommended</Badge>
+						<h3>Your workspace records</h3>
+						<Badge variant="success">Private</Badge>
 					</div>
-					<p>Your projects, Git status, and Cadence records stay on your computer.</p>
+					<p>Back up <code>cadence-workspace</code>, including its configuration and records.</p>
 				</CardHeader>
 				<CardContent class="prose-stack">
-					<ol>
-						<li>Download or clone Cadence beside the project folders it will read.</li>
-						<li>
-							Create <code>cadence-workspace</code>. Keep it in a private Git repository, or leave
-							it only on your computer.
-						</li>
-						<li>Keep private names, plans, decisions, and status notes in that folder.</li>
-						<li>
-							Back it up with a private Git remote or a reliable computer backup. This is the folder
-							you need to recover if something goes wrong.
-						</li>
-						<li>Start Cadence and open the dashboard on your computer.</li>
-					</ol>
 					<p>
-						If your Cadence app folder is lost, download it from GitHub again, install it, and point
-						it at your backed-up <code>cadence-workspace</code>. The app is replaceable; your
-						workspace data is not.
+						Use a private Git remote or a reliable computer backup. If you use Git, commit and push
+						the records you want to keep. Cadence does not perform backups for you.
 					</p>
-					<pre class="command-block"><code
-							>pnpm validate
-pnpm refresh --local-only
-pnpm dev</code
-						></pre>
+					<p>
+						If the app is lost, reinstall it and reconnect your data folder. Reinstalling Cadence
+						cannot recover records if every copy of <code>cadence-workspace</code> is lost.
+					</p>
 				</CardContent>
 			</Card>
 			<Card class="hosting-option">
 				<CardHeader>
 					<div class="hosting-option-title">
-						<h3>Share a public demo</h3>
+						<h3>A public demo</h3>
 						<Badge variant="info">Optional</Badge>
 					</div>
-					<p>Publish a separate example with only information you are comfortable sharing.</p>
+					<p>Share a separate example containing only information suitable for public use.</p>
 				</CardHeader>
 				<CardContent class="prose-stack">
-					<ol>
-						<li>Keep the real <code>cadence-workspace</code> repository private.</li>
-						<li>
-							Replace or review <code>src/lib/server/demo-workspace.ts</code> so every name and record
-							is safe to publish.
-						</li>
-						<li>
-							Update <code>wrangler.jsonc</code> for your own Cloudflare account, Worker name, and domain.
-						</li>
-						<li>Build, inspect, and deploy only the demo target.</li>
-					</ol>
-					<pre class="command-block"><code
-							>pnpm build:demo
-pnpm exec wrangler deploy --dry-run
-pnpm deploy</code
-						></pre>
+					<p>
+						Review the demo fixture and examples, configure your Cloudflare account, and inspect the
+						demo build before deploying. Keep private workspace files outside the app.
+					</p>
+					<Button
+						href="https://github.com/chienleng/cadence/blob/main/docs/privacy.md#publish-a-fictional-demo"
+						variant="outline"
+						target="_blank"
+						rel="external noreferrer">Read the hosting guide</Button
+					>
 				</CardContent>
 			</Card>
 		</div>
-		<Alert variant="warning" title="Check before you publish.">
-			A public Git repository exposes its files and its previous versions. Deleting private
-			information in a later commit does not remove it from the repository's history.
+		<Alert variant="warning" title="Review Git history before publishing.">
+			Review earlier commits before making a repository public. Deleting private files in a later
+			commit does not remove them from its history.
 		</Alert>
 	</section>
-	<Card>
-		<CardHeader>
-			<h2 id="local-setup">Set up your local dashboard</h2>
-			<p>These steps assume you already have Git, Node.js, and pnpm installed.</p>
-		</CardHeader>
-		<CardContent class="prose-stack">
-			<ol>
-				<li>Download or clone Cadence beside the project folders you want it to read.</li>
-				<li>Install dependencies with <code>pnpm install</code>.</li>
-				<li>
-					Ask your coding agent to read <code>docs/setup-with-ai.md</code> and inspect the workspace.
-				</li>
-				<li>
-					Review the proposed files inside <code>cadence-workspace/projects/</code> before allowing your
-					agent to create them.
-				</li>
-				<li>
-					Expose the approved workspace <code>AGENTS.md</code>, then run
-					<code>pnpm context --audit</code> to verify agent discovery.
-				</li>
-				<li>
-					Run <code>pnpm refresh --local-only</code>, then <code>pnpm dev</code>.
-				</li>
-			</ol>
-			<p>
-				Cadence never edits monitored repositories. Your own agent does the writing — and it should
-				request explicit permission before changing their documentation.
-			</p>
-			<Button href="https://github.com/chienleng/cadence" target="_blank" rel="external noreferrer"
-				>Open the repository</Button
-			>
-		</CardContent>
-	</Card>
 </main>

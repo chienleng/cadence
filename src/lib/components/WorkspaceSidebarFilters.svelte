@@ -2,10 +2,13 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { ChipGroup, MultiSelect, SearchInput } from '@chienleng/stratum-ui/forms';
-	import { Button, SectionLabel } from '@chienleng/stratum-ui/ui';
-	import X from '@chienleng/stratum-ui/icons/X.svelte';
+	import { Button } from '@chienleng/stratum-ui/ui';
+	import { X } from '@chienleng/stratum-ui/icons';
 	import {
 		filterHref,
+		applyFilters,
+		activeFilters,
+		resetFiltersHref,
 		parseFilters,
 		type FilterPatch,
 		type MetricFilter
@@ -21,7 +24,10 @@
 		selected: string[];
 	}
 
-	let { workspace }: { workspace: WorkspaceSnapshot } = $props();
+	let {
+		workspace,
+		announceResults = false
+	}: { workspace: WorkspaceSnapshot; announceResults?: boolean } = $props();
 
 	const filters = $derived(parseFilters(page.url.searchParams));
 
@@ -50,8 +56,9 @@
 	const metricOptions: { label: string; value: MetricFilter }[] = [
 		{ label: 'Needs attention', value: 'attention' },
 		{ label: 'Dirty', value: 'dirty' },
-		{ label: 'Behind', value: 'behind' },
+		{ label: 'Behind · local refs', value: 'behind' },
 		{ label: 'Stale status', value: 'stale' },
+		{ label: 'Missing status', value: 'missing-status' },
 		{ label: 'Standardized', value: 'standardized' },
 		{ label: 'Missing', value: 'missing' }
 	];
@@ -82,20 +89,12 @@
 		].filter((facet) => facet.options.length > 1)
 	);
 
-	const hasFilters = $derived(
-		Boolean(
-			filters.query ||
-			filters.metric ||
-			filters.lifecycles.length ||
-			filters.groups.length ||
-			filters.tags.length
-		)
-	);
+	const hasFilters = $derived(activeFilters(filters).length > 0);
 
 	function apply(patch: FilterPatch): void {
 		// filterHref patches query params onto the already-resolved current path.
 		// eslint-disable-next-line svelte/no-navigation-without-resolve
-		goto(filterHref(page.url, patch), { replaceState: true, keepFocus: true, noScroll: true });
+		goto(filterHref(page.url, patch), { replaceState: true, keepFocus: true });
 	}
 
 	function applyMetric(values: string[]): void {
@@ -120,18 +119,22 @@
 		onsearch={(value) => apply({ query: value })}
 	/>
 
-	<div class="filter-section">
-		<SectionLabel as="span">Focus</SectionLabel>
+	{#if announceResults}<p class="filter-result-count" role="status" aria-atomic="true">
+			{applyFilters(workspace.projects, filters).length} of {workspace.summary.total} projects
+		</p>{/if}
+
+	<fieldset class="filter-section">
+		<legend class="meta-label">Focus</legend>
 		<ChipGroup
 			options={metricOptions}
 			selected={filters.metric ? [filters.metric] : []}
 			onchange={applyMetric}
 		/>
-	</div>
+	</fieldset>
 
 	{#each facets as facet (facet.key)}
-		<div class="filter-section">
-			<SectionLabel as="span">{facet.label}</SectionLabel>
+		<fieldset class="filter-section">
+			<legend class="meta-label">{facet.label}</legend>
 			<MultiSelect
 				compact
 				label={facet.selected.length ? `${facet.selected.length} selected` : facet.allLabel}
@@ -156,10 +159,10 @@
 					{/each}
 				</ul>
 			{/if}
-		</div>
+		</fieldset>
 	{/each}
 
 	{#if hasFilters}
-		<Button variant="ghost" size="sm" href={page.url.pathname}>Clear all filters</Button>
+		<Button variant="ghost" size="sm" href={resetFiltersHref(page.url)}>Reset filters</Button>
 	{/if}
 </div>

@@ -1,7 +1,7 @@
 {
 	"name": "cadence",
 	"private": true,
-	"version": "0.4.0",
+	"version": "0.5.0",
 	"packageManager": "pnpm@11.20.0",
 	"type": "module",
 	"scripts": {
@@ -21,10 +21,14 @@
 		"refresh": "node scripts/refresh.mjs",
 		"validate": "node scripts/validate.mjs",
 		"test:unit": "vitest",
-		"test": "pnpm test:unit --run"
+		"test": "pnpm test:unit --run",
+		"test:e2e": "pnpm build && playwright test",
+		"test:e2e:demo": "pnpm build:demo && CADENCE_E2E_MODE=demo playwright test"
 	},
 	"devDependencies": {
+		"@axe-core/playwright": "^4.13.0",
 		"@eslint/js": "^10.0.1",
+		"@playwright/test": "^1.63.0",
 		"@sveltejs/adapter-cloudflare": "^7.2.9",
 		"@sveltejs/adapter-node": "^5.5.4",
 		"@sveltejs/kit": "^2.63.0",
@@ -45,7 +49,7 @@
 		"wrangler": "^4.113.0"
 	},
 	"dependencies": {
-		"@chienleng/stratum-ui": "^0.12.2",
+		"@chienleng/stratum-ui": "^0.14.1",
 		"markdown-it": "^15.0.0"
 	}
 }

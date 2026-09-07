@@ -1,9 +1,18 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { EmptyState, SwitchTabs } from '@chienleng/stratum-ui/ui';
+	import { Button, EmptyState, Switch } from '@chienleng/stratum-ui/ui';
+	import { X } from '@chienleng/stratum-ui/icons';
 	import { onMount } from 'svelte';
-	import { applyFilters, filterHref, parseFilters, type ProjectView } from '$lib/workspace/filters';
+	import {
+		activeFilters,
+		applyFilters,
+		filterHref,
+		parseFilters,
+		resetFiltersHref,
+		type ProjectView,
+		type FilterPatch
+	} from '$lib/workspace/filters';
 	import {
 		readStarredProjectIds,
 		starredProjectsStorageKey,
@@ -22,6 +31,9 @@
 	let starredStorage: StarredProjectsStorage | null = null;
 
 	const filters = $derived(parseFilters(page.url.searchParams));
+	const selections = $derived(activeFilters(filters));
+	const hasFilters = $derived(selections.length > 0);
+	let resultCount: HTMLSpanElement;
 	const filteredProjects = $derived(applyFilters(workspace.projects, filters));
 	const starredProjects = $derived(
 		filteredProjects
@@ -62,6 +74,16 @@
 		if (starredStorage) writeStarredProjectIds(starredStorage, storageKey, starredProjectIds);
 	}
 
+	async function changeFilters(href: string): Promise<void> {
+		// href is built from the resolved current URL by filterHref/resetFiltersHref.
+		// eslint-disable-next-line svelte/no-navigation-without-resolve
+		await goto(href);
+		resultCount?.focus({ preventScroll: true });
+	}
+	function removeFilter(patch: FilterPatch): void {
+		void changeFilters(filterHref(page.url, patch));
+	}
+
 	function setView(value: string): void {
 		// filterHref patches query params onto the already-resolved current path.
 		// eslint-disable-next-line svelte/no-navigation-without-resolve
@@ -82,15 +104,49 @@
 		{workspace.mode === 'demo' ? 'Fictional demo projects' : 'Workspace projects'}
 	</h1>
 
-	<AttentionStrip projects={workspace.projects} {demo} />
-	<SummaryStrip {workspace} />
+	{#if !hasFilters}
+		<AttentionStrip projects={workspace.projects} {demo} />
+		<SummaryStrip {workspace} />
+	{/if}
 
 	<div class="dashboard-toolbar">
-		<span class="result-count">
+		<span
+			class="result-count"
+			bind:this={resultCount}
+			tabindex="-1"
+			role="status"
+			aria-live="polite"
+			aria-atomic="true"
+		>
 			{filteredProjects.length} of {workspace.summary.total} projects
 		</span>
-		<SwitchTabs buttons={viewOptions} selected={filters.view} onchange={setView} />
+		<div role="group" aria-label="Project view">
+			<Switch size="sm" buttons={viewOptions} selected={filters.view} onchange={setView} />
+		</div>
 	</div>
+
+	{#if hasFilters}
+		<section class="active-filters" aria-label="Active filters">
+			<ul>
+				{#each selections as selection (selection.key)}
+					<li>
+						<Button
+							variant="outline"
+							size="sm"
+							class="active-filter-button"
+							aria-label={`Remove ${selection.label}`}
+							onclick={() => removeFilter(selection.patch)}
+						>
+							<span>{selection.label}</span><X size={14} aria-hidden="true" />
+						</Button>
+					</li>
+				{/each}
+			</ul>
+			<Button variant="ghost" size="sm" onclick={() => changeFilters(resetFiltersHref(page.url))}
+				>Reset filters</Button
+			>
+		</section>
+	{/if}
 
 	{#if filteredProjects.length === 0}
 		<EmptyState
@@ -138,5 +194,14 @@
 				ontogglestar={toggleStarred}
 			/>
 		</section>
+	{/if}
+	{#if hasFilters}
+		<details class="workspace-overview">
+			<summary>Workspace overview · all {workspace.summary.total} projects</summary>
+			<div class="workspace-overview-content">
+				<AttentionStrip projects={workspace.projects} {demo} />
+				<SummaryStrip {workspace} />
+			</div>
+		</details>
 	{/if}
 </main>

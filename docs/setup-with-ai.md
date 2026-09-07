@@ -1,28 +1,87 @@
-# Set up Cadence with your own AI
+# Set up your workspace
 
-The recommended setup keeps your real dashboard on your computer. Run Cadence with `pnpm dev`, then
-keep `cadence-workspace` in a private Git repository or only on your computer with a reliable
-backup. Publishing is a separate, optional demo workflow; it never needs access to your real data.
-Read [Privacy and safety](privacy.md) before publishing anything.
+Cadence needs two things: the app checkout and a data folder that registers your projects.
+This guide uses `cadence-workspace` beside the app. Your source repositories stay where they are.
 
-Clone Cadence beside the repositories you want to inspect, start it once, then give your coding agent
-the following request from the Cadence checkout:
+## Install Cadence
 
-> Read this repository's README, AGENTS.md, docs/product.md, docs/data-contract.md,
-> docs/agent-context.md, and fictional example. Inspect the parent workspace read-only. Propose a
-> `cadence-workspace` data repository that follows Cadence's principles and registers the
-> repositories that genuinely represent projects.
-> Do not edit any monitored repository. Show me the proposed groups, paths, summaries, lifecycle
-> values, and workspace-level `AGENTS.md` context instruction before writing. After I approve them,
-> create only the data repository, workspace-level guide, and vendor compatibility shims, preserve
-> visible `projects/` records, run `pnpm validate` and `pnpm context --audit`, and report anything
-> uncertain instead of inventing it.
+You need Git, Node.js 22 or newer, and pnpm. From the folder that contains your projects:
 
-Review the proposed inventory carefully, particularly client names and anything that should not be
-versioned. The data repository should normally remain private and be backed up with a private Git
-remote or a reliable machine backup.
+```bash
+git clone https://github.com/chienleng/cadence.git
+cd cadence
+pnpm install
+```
 
-After setup:
+The repository pins its pnpm version in `package.json`. Keep subsequent commands in this checkout,
+or use `pnpm --dir /path/to/cadence` when working elsewhere.
+
+## Create the data folder
+
+You can ask your coding agent to prepare it or edit the files yourself. In either case, start with
+the [fictional example](../examples/cadence-workspace/) and the [data reference](data-contract.md).
+Replace the example names, paths and status with information you have checked.
+
+### With your coding agent
+
+Give your agent this request from the Cadence checkout:
+
+> Read README.md, AGENTS.md, docs/product.md, docs/data-contract.md, docs/agent-context.md and
+> examples/cadence-workspace/. Inspect the parent workspace without changing its repositories.
+> Propose a cadence-workspace data folder with a project inventory: paths, names, groups, summaries
+> and lifecycle values. Identify anything uncertain; do not invent status or plans.
+>
+> Show me the proposed files and workspace-level AGENTS.md instruction. Once I approve the inventory,
+> create the data folder and approved workspace-level instructions. Keep records under visible
+> projects/ directories. Do not change existing project repositories. Run pnpm validate and
+> pnpm context --audit, then explain anything that still needs attention.
+
+Review the inventory before it is written, especially client names and private context. Keep the
+data folder private and backed up. Optional compatibility files for your chosen agent are covered
+in [Agent context](agent-context.md#compatibility-files).
+
+### By editing the files
+
+Create this structure beside the Cadence checkout:
+
+```text
+your-projects/
+├── cadence/
+├── harbour-api/                 # An existing project
+└── cadence-workspace/
+    ├── cadence.config.json
+    └── projects/
+        └── harbour-api/
+            ├── project.json
+            └── STATUS.md
+```
+
+Use your own workspace name and project metadata. The [data reference](data-contract.md) has
+complete JSON examples and explains how paths resolve. `STATUS.md` is optional, but a dated status
+helps you and your agent pick up the work later.
+
+Cadence registers only projects with a `projects/**/project.json` file. It does not automatically
+register every Git repository it can find.
+
+## Connect your agent to the records
+
+Add a [Cadence context instruction](agent-context.md#workspace-instruction) to your workspace-level
+`AGENTS.md`. Keep its canonical copy under `cadence-workspace/workspace/` and expose it at the real
+workspace root with a deliberate copy or symlink. Preserve any existing workspace guidance.
+
+Some tools do not read instructions above a project's Git root. Check discovery from inside a
+project as well as from the workspace root. Cadence can print a project-level instruction for review:
+
+```bash
+pnpm context --cwd /path/to/project --snippet
+```
+
+Adding that snippet to a project's `AGENTS.md` is a separate, intentional change; Cadence never
+applies it. The [agent guide](agent-context.md) explains compatibility files and audit limitations.
+
+## Validate and open the dashboard
+
+From the Cadence checkout:
 
 ```bash
 pnpm validate
@@ -31,39 +90,19 @@ pnpm refresh --local-only
 pnpm dev
 ```
 
-`cadence-workspace` is the part you must keep safe. The Cadence app itself can be replaced. If the
-app folder is lost, download or clone Cadence from GitHub again, install it, and point it at your
-backed-up workspace folder. Reinstalling the app cannot recover plans, decisions, notes, or setup if
-every copy of `cadence-workspace` has been lost.
+Open <http://cadence.localhost:7613/projects>. Validation checks the configuration; the audit
+reports missing source folders, status records and discovery instructions. A missing checkout can still have
+readable records in `cadence-workspace`.
 
-The workspace-level `AGENTS.md` should tell every coding agent to run the context resolver before
-planning or substantial changes. Tools that load a vendor-specific file instead need a shim that
-loads that guide rather than points at it — for Claude Code, a `CLAUDE.md` at the workspace root
-whose content is an `@AGENTS.md` import; a bare "read AGENTS.md first" pointer is routinely
-skipped. See [Agent context discovery](agent-context.md) for the shim contract;
-`pnpm context --audit` reports a shim that only references the guide as `pointer-only`. Tools that
-read `AGENTS.md` natively, such as OpenAI Codex, need no root shim but scope discovery to the Git
-root, so sessions inside a sub-repository never load the workspace guide on their own — give those
-projects the generated section below, or add a scoped routing rule to the tool's global
-instructions (for Codex, `~/.codex/AGENTS.md`). If a tool
-does not inherit workspace-level instructions at all, run
-`pnpm context --cwd /path/to/project --snippet` and review the generated section before adding it to
-that project's own `AGENTS.md`. Cadence never applies these snippets itself.
+The first refresh above uses local Git only. To include GitHub counts, authenticate the `gh` CLI,
+run `pnpm refresh`, and reload the dashboard. See the [command reference](commands.md) for refresh
+behaviour and [custom data locations](commands.md#choose-a-data-folder).
 
-Project registration changes only when a project directory and `project.json` are deliberately
-added to the data repository. See [Agent context discovery](agent-context.md) for the full contract.
+## Keep the workspace current
 
-## If you want a public cloud demo
+Update each project's `STATUS.md` when substantive work changes its status or next steps. Keep
+plans and decisions with its records, and actionable tasks in GitHub Issues. Your agent can help
+maintain these files, but Cadence itself only reads them.
 
-Do not deploy the local filesystem-backed application or copy `cadence-workspace` into the app.
-Instead, review or replace the deliberately public fixture in
-`src/lib/server/demo-workspace.ts`, update `wrangler.jsonc` for your Cloudflare account and domain,
-then build and deploy only the demo target:
-
-```bash
-pnpm build:demo
-pnpm exec wrangler deploy --dry-run
-pnpm deploy
-```
-
-Treat every fixture value and every committed example as public before running the deploy command.
+Back up `cadence-workspace`. If the app is lost, reinstall it and reconnect the data folder.
+The [privacy and backup guide](privacy.md) covers recovery and the separate public-demo workflow.

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-import { access, readFile, readdir } from 'node:fs/promises';
+import { access } from 'node:fs/promises';
+import { containedPath, containedDirectory, findFiles, readBoundedText } from './lib/files.mjs';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -16,9 +17,11 @@ async function exists(path) {
 	}
 }
 
-async function readJson(path, issues) {
+async function readJson(root, path, issues) {
 	try {
-		return JSON.parse(await readFile(path, 'utf8'));
+		const source = await readBoundedText(root, path);
+		if (!source || source.truncated) throw new Error('Unreadable JSON');
+		return JSON.parse(source.text);
 	} catch {
 		issues.push(`${path} is missing or is not valid JSON.`);
 		return null;
@@ -29,7 +32,7 @@ export async function validateDataRoot(root = process.env.CADENCE_DATA_ROOT) {
 	const dataRoot = resolve(root ?? resolve(appRoot, '..', 'cadence-workspace'));
 	const issues = [];
 	const configPath = resolve(dataRoot, 'cadence.config.json');
-	const config = await readJson(configPath, issues);
+	const config = await readJson(dataRoot, configPath, issues);
 	if (
 		config &&
 		(config.schemaVersion !== 1 ||
@@ -44,27 +47,25 @@ export async function validateDataRoot(root = process.env.CADENCE_DATA_ROOT) {
 	const workspaceRoot = config?.workspaceRoot
 		? resolve(dataRoot, config.workspaceRoot)
 		: resolve(dataRoot, '..');
-	if (config && !(await exists(workspaceRoot))) {
+	if (config && !(await containedDirectory(workspaceRoot, workspaceRoot))) {
 		issues.push(`Workspace root does not exist: ${workspaceRoot}`);
 	}
 
 	const projectsRoot = resolve(dataRoot, 'projects');
-	const definitionPaths = [];
-	async function visit(directory, depth) {
-		if (depth > 12 || !(await exists(directory))) return;
-		for (const entry of await readdir(directory, { withFileTypes: true })) {
-			if (entry.isSymbolicLink() || entry.name.startsWith('.')) continue;
-			const child = resolve(directory, entry.name);
-			if (entry.isDirectory()) await visit(child, depth + 1);
-			else if (entry.isFile() && entry.name === 'project.json') definitionPaths.push(child);
-		}
+	if ((await exists(projectsRoot)) && !(await containedDirectory(dataRoot, projectsRoot))) {
+		issues.push('projects/ resolves outside the data repository.');
 	}
-	await visit(projectsRoot, 0);
+	const definitionPaths = (
+		await findFiles(dataRoot, projectsRoot, {
+			accept: (path) => path.split(sep).at(-1) === 'project.json',
+			limit: 10_000
+		})
+	).map((path) => resolve(projectsRoot, path));
 
 	const projects = [];
 	const ids = new Set();
 	for (const path of definitionPaths.sort()) {
-		const project = await readJson(path, issues);
+		const project = await readJson(dataRoot, path, issues);
 		if (!project) continue;
 		const expectedPath = relative(projectsRoot, dirname(path)).split(sep).join('/');
 		if (
@@ -91,7 +92,11 @@ export async function validateDataRoot(root = process.env.CADENCE_DATA_ROOT) {
 		ids.add(id);
 		const source = resolve(workspaceRoot, project.path);
 		const fromWorkspace = relative(workspaceRoot, source);
-		if (fromWorkspace === '..' || fromWorkspace.startsWith(`..${sep}`)) {
+		if (
+			fromWorkspace === '..' ||
+			fromWorkspace.startsWith(`..${sep}`) ||
+			!(await containedPath(workspaceRoot, source, { allowMissing: true }))
+		) {
 			issues.push(`Project path escapes workspaceRoot: ${project.path}`);
 		}
 		projects.push(project);

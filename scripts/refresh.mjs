@@ -6,6 +6,7 @@ import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { validateDataRoot } from './validate.mjs';
+import { containedPath } from './lib/files.mjs';
 
 const execFileAsync = promisify(execFile);
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -56,7 +57,10 @@ function githubName(remote) {
 }
 
 async function inspectProject(workspaceRoot, project, localOnly) {
-	const directory = resolve(workspaceRoot, project.path);
+	const directory = await containedPath(workspaceRoot, resolve(workspaceRoot, project.path), {
+		allowMissing: true
+	});
+	if (!directory) throw new Error(`Unsafe project source path: ${project.path}`);
 	const [branch, status, log, remote, divergence] = await Promise.all([
 		run('git', ['-C', directory, 'branch', '--show-current']),
 		run('git', ['-C', directory, 'status', '--porcelain=v1']),
@@ -94,7 +98,7 @@ async function inspectProject(workspaceRoot, project, localOnly) {
 		git: repository
 			? {
 					branch: branch.ok ? branch.value || null : null,
-					dirtyFiles: status.ok && status.value ? status.value.split('\n').length : 0,
+					dirtyFiles: status.ok ? (status.value ? status.value.split('\n').length : 0) : null,
 					lastCommitAt,
 					lastCommitHash,
 					lastCommitSubject,

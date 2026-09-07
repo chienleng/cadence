@@ -186,6 +186,10 @@ a {
 }
 
 .filter-section {
+	min-width: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
 	display: grid;
 	gap: var(--su-space-2);
 }
@@ -300,6 +304,14 @@ h2 {
 
 .docs-shell [id] {
 	scroll-margin-top: 5.5rem;
+}
+
+.docs-shell .prose-stack {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.docs-shell :not(pre) > code {
+	overflow-wrap: anywhere;
 }
 
 .landing-hero {
@@ -531,7 +543,7 @@ h2 {
 
 .attention-list {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(21rem, 1fr));
+	grid-template-columns: repeat(auto-fill, minmax(min(21rem, 100%), 1fr));
 	gap: var(--su-space-2);
 	margin: 0;
 	padding: 0;
@@ -541,6 +553,7 @@ h2 {
 .attention-row {
 	display: flex;
 	flex-wrap: wrap;
+	overflow-wrap: anywhere;
 	align-items: baseline;
 	gap: var(--su-space-2) var(--su-space-3);
 	padding: var(--su-space-2) var(--su-space-3);
@@ -673,6 +686,8 @@ h2 {
 
 .project-card-shell {
 	position: relative;
+	min-width: 0;
+	overflow-wrap: anywhere;
 	border-radius: var(--su-radius-lg);
 }
 
@@ -736,12 +751,43 @@ h2 {
 	white-space: nowrap;
 }
 
-.table-commit-subject {
-	display: block;
-	max-width: 26rem;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+.project-comparison .row-link {
+	min-width: 12rem;
+	max-width: 16rem;
+	overflow-wrap: anywhere;
+}
+
+.project-comparison .table-git {
+	min-width: 9rem;
+	max-width: 12rem;
+	overflow-wrap: anywhere;
+}
+
+.project-comparison .table-activity {
+	min-width: 9rem;
+	max-width: 16rem;
+}
+
+.table-commit summary {
+	cursor: pointer;
+	color: var(--su-text-muted);
+}
+
+.table-commit p {
+	margin: var(--su-space-2) 0 0;
+	max-width: 16rem;
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+
+.table-work-link {
+	text-decoration: underline;
+	text-underline-offset: 0.2em;
+}
+
+:is(.table-work-link, .table-commit summary):focus-visible {
+	outline: 2px solid var(--su-focus-ring);
+	outline-offset: 3px;
 }
 
 .project-card-header {
@@ -1147,7 +1193,11 @@ h2 {
 		padding-top: var(--su-space-8);
 	}
 
-	.project-grid,
+	.project-grid {
+		/* Long commit subjects must not set the single column's minimum width. */
+		grid-template-columns: minmax(0, 1fr);
+	}
+
 	.principle-grid,
 	.detail-grid,
 	.structure-notes,
@@ -1169,4 +1219,122 @@ h2 {
 	.dashboard-toolbar {
 		flex-wrap: wrap;
 	}
+}
+
+.data-coverage {
+	margin-top: var(--su-space-3);
+	color: var(--su-text-muted);
+	font-size: var(--su-font-size-sm);
+	overflow-wrap: anywhere;
+}
+.data-coverage p {
+	margin: var(--su-space-1) 0;
+}
+
+.active-filters {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--su-space-2);
+	margin-top: var(--su-space-3);
+}
+.active-filters ul {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--su-space-2);
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	min-width: 0;
+}
+.active-filters li {
+	min-width: 0;
+	max-width: 100%;
+}
+.active-filter-button {
+	max-width: 100%;
+	height: auto;
+	white-space: normal;
+	text-align: left;
+}
+.active-filter-button span {
+	min-width: 0;
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+.active-filter-button svg {
+	flex-shrink: 0;
+}
+.workspace-overview {
+	margin-top: var(--su-space-8);
+	border-top: 1px solid var(--su-border);
+}
+.workspace-overview summary {
+	cursor: pointer;
+	padding: var(--su-space-4) 0;
+	color: var(--su-text-muted);
+	font-size: var(--su-font-size-sm);
+}
+.workspace-overview summary:focus-visible,
+.result-count:focus-visible {
+	outline: 2px solid var(--su-accent);
+	outline-offset: 4px;
+}
+.workspace-overview-content {
+	padding-top: var(--su-space-4);
+}
+
+.mobile-record-picker {
+	display: none;
+}
+.detail-grid > * {
+	min-width: 0;
+}
+
+.detail-grid :is(.check-list strong, .commit-copy) {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+.detail-grid .record-meta {
+	overflow-wrap: anywhere;
+}
+.record-layout .record-meta {
+	flex-wrap: wrap;
+}
+.record-layout .record-meta .document-path {
+	flex-basis: 100%;
+	min-width: 0;
+	order: 1;
+}
+@media (max-width: 700px) {
+	.mobile-record-picker {
+		display: block;
+		margin-bottom: var(--su-space-4);
+	}
+	.record-layout > .workflow-nav {
+		display: none;
+	}
+}
+
+/* The library's subtle text token is too light for actionable filter chips. */
+.sidebar-filters .su-chip-group {
+	--su-text-subtle: var(--su-text-muted);
+}
+
+.filter-section legend {
+	padding: 0;
+	margin-bottom: var(--su-space-2);
+}
+
+.filter-result-count,
+.local-ref-note {
+	margin: 0;
+	color: var(--su-text-muted);
+	font-size: var(--su-font-size-xs);
+	line-height: 1.5;
+}
+
+.sidebar-filters .su-search-input .clear {
+	width: 1.5rem;
+	height: 1.5rem;
 }

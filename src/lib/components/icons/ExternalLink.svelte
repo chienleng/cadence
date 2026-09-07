@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { ComponentProps } from 'svelte';
-	import Icon from '@chienleng/stratum-ui/icons/Icon.svelte';
+	import { Icon } from '@chienleng/stratum-ui/icons';
 
 	let { ...props }: ComponentProps<typeof Icon> = $props();
 </script>

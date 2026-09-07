@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, rename, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -242,5 +242,54 @@ describe('workspace overview', () => {
 	it('rejects invalid overview flag combinations', async () => {
 		await expect(context(['--overview', '--cwd', workspaceRoot])).rejects.toThrow();
 		await expect(context(['--overview', '--days', 'potato'])).rejects.toThrow();
+	});
+});
+
+describe('CLI read boundaries', () => {
+	it('excludes generated, hidden, linked and non-Markdown record files', async () => {
+		const recordRoot = resolve(dataRoot, 'projects/apps/harbour/notes');
+		await write(resolve(recordRoot, 'kept.md'), '# Kept');
+		await write(resolve(recordRoot, 'node_modules/hidden.md'), '# Generated');
+		await write(resolve(recordRoot, '.private/hidden.md'), '# Hidden');
+		await write(resolve(recordRoot, 'image.png'), 'Not Markdown');
+		await write(resolve(fixtureRoot, 'secret.md'), '# Outside');
+		await symlink(resolve(fixtureRoot, 'secret.md'), resolve(recordRoot, 'linked.md'));
+		const result = JSON.parse(
+			await context(['--cwd', resolve(workspaceRoot, 'apps/harbour'), '--json'])
+		);
+		expect(result.records.map((record: { title: string }) => record.title)).toEqual(['Kept']);
+	});
+	it('rejects an escaping source alias before context or refresh inspection', async () => {
+		await mkdir(resolve(fixtureRoot, 'outside'));
+		await rm(resolve(workspaceRoot, 'apps/harbour'), { recursive: true });
+		await symlink(resolve(fixtureRoot, 'outside'), resolve(workspaceRoot, 'apps/harbour'));
+		await expect(context(['--audit'])).rejects.toThrow('escapes workspaceRoot');
+		await expect(
+			execFileAsync('node', ['scripts/refresh.mjs', '--local-only'], {
+				cwd: process.cwd(),
+				env: { ...process.env, CADENCE_DATA_ROOT: dataRoot, CADENCE_CACHE_ROOT: cacheRoot }
+			})
+		).rejects.toThrow('escapes workspaceRoot');
+	});
+	it('resolves a registered source alias inside the workspace to its saved records', async () => {
+		await rename(resolve(workspaceRoot, 'apps/harbour'), resolve(workspaceRoot, 'checkout'));
+		await symlink(resolve(workspaceRoot, 'checkout'), resolve(workspaceRoot, 'apps/harbour'));
+		const result = JSON.parse(
+			await context(['--cwd', resolve(workspaceRoot, 'checkout/src'), '--json'])
+		);
+		expect(result.project.path).toBe('apps/harbour');
+		expect(result.statusText).toContain('Ready.');
+	});
+
+	it('bounds status output and labels the truncated prefix', async () => {
+		await write(
+			resolve(dataRoot, 'projects/apps/harbour/STATUS.md'),
+			'# Large\n' + 'x'.repeat(512 * 1024) + 'TAIL_SENTINEL'
+		);
+		const result = JSON.parse(
+			await context(['--cwd', resolve(workspaceRoot, 'apps/harbour'), '--json'])
+		);
+		expect(result.statusText).toContain('Preview truncated at 512 KiB.');
+		expect(result.statusText).not.toContain('TAIL_SENTINEL');
 	});
 });

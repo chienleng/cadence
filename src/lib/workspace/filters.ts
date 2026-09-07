@@ -1,7 +1,8 @@
 import { attentionReasons } from './triage';
 import type { ProjectSnapshot } from './types';
 
-export type MetricFilter = 'attention' | 'dirty' | 'behind' | 'stale' | 'standardized' | 'missing';
+export type MetricFilter =
+	'attention' | 'dirty' | 'behind' | 'stale' | 'standardized' | 'missing' | 'missing-status';
 
 export type ProjectView = 'grouped' | 'table';
 
@@ -20,17 +21,20 @@ const METRICS = new Set<MetricFilter>([
 	'behind',
 	'stale',
 	'standardized',
-	'missing'
+	'missing',
+	'missing-status'
 ]);
 
 function list(params: URLSearchParams, key: string): string[] {
-	return (
-		params
-			.get(key)
-			?.split(',')
-			.map((value) => value.trim())
-			.filter(Boolean) ?? []
-	);
+	return [
+		...new Set(
+			params
+				.get(key)
+				?.split(',')
+				.map((value) => value.trim())
+				.filter(Boolean) ?? []
+		)
+	];
 }
 
 export function parseFilters(params: URLSearchParams): FilterState {
@@ -81,6 +85,48 @@ export function filterHref(url: URL, patch: FilterPatch): string {
 	return `${url.pathname}${query ? `?${query}` : ''}`;
 }
 
+export const METRIC_LABELS: Record<MetricFilter, string> = {
+	attention: 'Needs attention',
+	dirty: 'Dirty',
+	behind: 'Behind upstream',
+	stale: 'Stale status',
+	standardized: 'Standardized',
+	missing: 'Missing locally',
+	'missing-status': 'Missing status'
+};
+
+export function resetFiltersHref(url: URL): string {
+	return filterHref(url, { query: null, lifecycles: [], groups: [], tags: [], metric: null });
+}
+
+/** Each chip removes only its own selection; presentation preferences stay in the URL. */
+export function activeFilters(
+	state: FilterState
+): { key: string; label: string; patch: FilterPatch }[] {
+	const items: { key: string; label: string; patch: FilterPatch }[] = [];
+	if (state.query)
+		items.push({ key: 'query', label: `Search: ${state.query}`, patch: { query: null } });
+	if (state.metric)
+		items.push({
+			key: 'metric',
+			label: `Focus: ${METRIC_LABELS[state.metric]}`,
+			patch: { metric: null }
+		});
+	for (const [key, label] of [
+		['groups', 'Group'],
+		['lifecycles', 'Lifecycle'],
+		['tags', 'Tag']
+	] as const) {
+		for (const value of state[key])
+			items.push({
+				key: `${key}:${value}`,
+				label: `${label}: ${value}`,
+				patch: { [key]: state[key].filter((item) => item !== value) }
+			});
+	}
+	return items;
+}
+
 /** Toggle link for a metric stat tile: clicking the active metric clears it. */
 export function metricHref(url: URL, metric: MetricFilter, current: MetricFilter | null): string {
 	return filterHref(url, { metric: current === metric ? null : metric });
@@ -101,11 +147,12 @@ export function matchesMetric(
 	now = new Date()
 ): boolean {
 	if (metric === 'attention') return attentionReasons(project, now).length > 0;
-	if (metric === 'dirty') return project.git.dirtyFiles > 0;
+	if (metric === 'dirty') return (project.git.dirtyFiles ?? 0) > 0;
 	if (metric === 'behind') return (project.git.behind ?? 0) > 0;
 	if (metric === 'stale') return project.status.stale;
 	if (metric === 'standardized') return project.conventionScore === 100;
 	if (metric === 'missing') return !project.exists;
+	if (metric === 'missing-status') return project.lifecycle === 'active' && !project.status.present;
 	return true;
 }
 

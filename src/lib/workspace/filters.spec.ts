@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { applyFilters, filterHref, lifecycleHref, metricHref, parseFilters } from './filters';
+import {
+	activeFilters,
+	applyFilters,
+	filterHref,
+	lifecycleHref,
+	metricHref,
+	parseFilters,
+	resetFiltersHref
+} from './filters';
 import type { ProjectSnapshot } from './types';
 
 function project(overrides: Partial<ProjectSnapshot> = {}): ProjectSnapshot {
@@ -65,10 +73,10 @@ describe('parseFilters', () => {
 
 describe('filterHref', () => {
 	it('applies patches and removes empty params', () => {
-		const url = new URL('http://localhost/?q=api&metric=dirty');
-		expect(filterHref(url, { metric: null })).toBe('/?q=api');
+		const url = new URL('http://localhost/projects?q=api&metric=dirty');
+		expect(filterHref(url, { metric: null })).toBe('/projects?q=api');
 		expect(filterHref(url, { lifecycles: ['active'] })).toBe(
-			'/?q=api&metric=dirty&lifecycle=active'
+			'/projects?q=api&metric=dirty&lifecycle=active'
 		);
 	});
 
@@ -79,9 +87,13 @@ describe('filterHref', () => {
 	});
 
 	it('toggles a lifecycle while preserving other lifecycle selections', () => {
-		const url = new URL('http://localhost/?lifecycle=maintained');
-		expect(lifecycleHref(url, 'active', ['maintained'])).toBe('/?lifecycle=maintained%2Cactive');
-		expect(lifecycleHref(url, 'active', ['maintained', 'active'])).toBe('/?lifecycle=maintained');
+		const url = new URL('http://localhost/projects?lifecycle=maintained');
+		expect(lifecycleHref(url, 'active', ['maintained'])).toBe(
+			'/projects?lifecycle=maintained%2Cactive'
+		);
+		expect(lifecycleHref(url, 'active', ['maintained', 'active'])).toBe(
+			'/projects?lifecycle=maintained'
+		);
 	});
 });
 
@@ -121,5 +133,58 @@ describe('applyFilters', () => {
 			'b',
 			'c'
 		]);
+	});
+});
+
+describe('active filter controls', () => {
+	it('lists all filters and removes one facet without clearing the others or table view', () => {
+		const url = new URL(
+			'http://cadence.localhost/demo?q=api&group=Products,Libraries&lifecycle=active&tag=typescript&metric=attention&view=table'
+		);
+		const state = parseFilters(url.searchParams);
+		const chips = activeFilters(state);
+		expect(chips.map((chip) => chip.label)).toEqual([
+			'Search: api',
+			'Focus: Needs attention',
+			'Group: Products',
+			'Group: Libraries',
+			'Lifecycle: active',
+			'Tag: typescript'
+		]);
+		const result = new URL(
+			filterHref(url, chips.find((chip) => chip.key === 'groups:Products')!.patch),
+			url
+		);
+		expect(parseFilters(result.searchParams)).toEqual({ ...state, groups: ['Libraries'] });
+	});
+	it('resets every filter while preserving view and unrelated URL parameters', () => {
+		const url = new URL(
+			'http://cadence.localhost/demo?q=api&group=Products&lifecycle=active&tag=typescript&metric=dirty&view=table&extra=keep'
+		);
+		expect(resetFiltersHref(url)).toBe('/demo?view=table&extra=keep');
+		expect(activeFilters(parseFilters(new URLSearchParams('view=table')))).toEqual([]);
+	});
+	it('deduplicates facet values so URL repetition cannot create duplicate controls', () => {
+		expect(
+			activeFilters(parseFilters(new URLSearchParams('group=Products,Products&tag=api,api')))
+		).toHaveLength(2);
+	});
+	it('includes active projects missing status in both focus filters', () => {
+		const projects = [
+			project({ id: 'missing', status: { present: false, updatedAt: null, stale: false } }),
+			project({ id: 'present' }),
+			project({
+				id: 'paused',
+				lifecycle: 'paused',
+				status: { present: false, updatedAt: null, stale: false }
+			})
+		];
+		for (const metric of ['attention', 'missing-status']) {
+			expect(
+				applyFilters(projects, parseFilters(new URLSearchParams(`metric=${metric}`))).map(
+					(p) => p.id
+				)
+			).toEqual(['missing']);
+		}
 	});
 });

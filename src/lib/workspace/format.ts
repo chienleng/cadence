@@ -1,6 +1,7 @@
 import { resolve } from '$app/paths';
 import type { BadgeVariant } from '@chienleng/stratum-ui/ui';
 import type { Lifecycle, ProjectSnapshot } from './types';
+import { dashboardHref } from './navigation';
 
 export function commitTimestamp(project: ProjectSnapshot): number {
 	if (!project.git.lastCommitAt) return Number.NEGATIVE_INFINITY;
@@ -23,8 +24,9 @@ export function lifecycleVariant(value: Lifecycle): BadgeVariant {
 }
 
 /** Detail-page link for a project; `resolve` needs the route ids as literals. */
-export function projectHref(id: string, demo: boolean): string {
-	return demo
+export function projectHref(id: string, demo: boolean, filters?: URLSearchParams): string {
+	const path = demo
 		? resolve('/demo/projects/[slug]', { slug: id })
 		: resolve('/projects/[slug]', { slug: id });
+	return filters ? dashboardHref(path, filters) : path;
 }

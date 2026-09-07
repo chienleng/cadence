@@ -32,7 +32,8 @@ export interface ConventionCheck {
 export interface GitSnapshot {
 	isRepository: boolean;
 	branch: string | null;
-	dirtyFiles: number;
+	/** null means the working tree could not be inspected or is not a repository. */
+	dirtyFiles: number | null;
 	lastCommitAt: string | null;
 	lastCommitHash: string | null;
 	lastCommitSubject: string | null;
@@ -53,9 +54,9 @@ export interface GithubRelease {
 	publishedAt: string;
 }
 
-/** GitHub data comes from the refresh cache; 'absent' means render nothing. */
+/** GitHub data comes from the refresh cache; missing counts are never confirmed zeros. */
 export interface GithubSnapshot {
-	state: 'ok' | 'absent';
+	state: 'ok' | 'stale' | 'failed' | 'unavailable' | 'absent' | 'not-applicable';
 	fetchedAt: string | null;
 	isPrivate: boolean | null;
 	openIssues: number | null;
@@ -96,8 +97,8 @@ export interface WorkspaceSnapshot {
 		fullyStandardized: number;
 		behindUpstream: number;
 		staleStatus: number;
-		openIssues: number;
-		openPullRequests: number;
+		openIssues: number | null;
+		openPullRequests: number | null;
 	};
 }
 
@@ -135,7 +136,14 @@ export interface RecentCommit {
 
 export interface ProjectDetail {
 	project: ProjectSnapshot;
-	documents: ProjectDocument[];
-	records: ProjectRecord[];
+	documents: Omit<ProjectDocument, 'html'>[];
+	records: Omit<ProjectRecord, 'html'>[];
+	selectedDocument: ProjectDocument | null;
+	selectedRecord: ProjectRecord | null;
 	recentCommits: RecentCommit[];
+}
+
+export interface PreviewSelection {
+	record?: string | null;
+	document?: string | null;
 }

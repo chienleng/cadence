@@ -46,7 +46,7 @@
 				<li>
 					<!-- projectHref resolves the route internally. -->
 					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-					<a class="attention-row" href={projectHref(project.id, demo)}>
+					<a class="attention-row" href={projectHref(project.id, demo, page.url.searchParams)}>
 						<span class="attention-name">{project.name}</span>
 						<span class="attention-reasons">
 							{#each reasons as reason (reason.key)}

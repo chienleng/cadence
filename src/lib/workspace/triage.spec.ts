@@ -46,7 +46,7 @@ function project(overrides: {
 			latestRelease: null
 		},
 		status: {
-			present: overrides.stale !== undefined,
+			present: true,
 			updatedAt: overrides.updatedAt ?? null,
 			stale: overrides.stale ?? false
 		}
@@ -96,5 +96,25 @@ describe('attentionRank', () => {
 		expect(everythingElse).toBeGreaterThan(0);
 		expect(dirty).toBeGreaterThan(everythingElse);
 		expect(attentionRank(project({}), now)).toBe(0);
+	});
+});
+
+describe('missing status signals', () => {
+	it('flags active projects with no status and includes them in attention', () => {
+		const active = { ...project({}), status: { present: false, updatedAt: null, stale: false } };
+		expect(attentionReasons(active, now)).toEqual([
+			{ key: 'missing-status', label: 'Missing status' }
+		]);
+		expect(attentionRank(active, now)).toBe(1);
+	});
+	it('does not flag missing status for paused or maintained projects', () => {
+		for (const lifecycle of ['paused', 'maintained', 'archived'] as const) {
+			expect(
+				attentionReasons(
+					{ ...project({}), lifecycle, status: { present: false, updatedAt: null, stale: false } },
+					now
+				)
+			).toEqual([]);
+		}
 	});
 });

@@ -1,7 +1,7 @@
 import type { ProjectSnapshot } from './types';
 
 export interface AttentionReason {
-	key: 'dirty' | 'ahead' | 'behind' | 'prs' | 'stale';
+	key: 'dirty' | 'ahead' | 'behind' | 'prs' | 'stale' | 'missing-status';
 	label: string;
 }
 
@@ -20,7 +20,7 @@ function staleLabel(updatedAt: string | null, now: Date): string {
  */
 export function attentionReasons(project: ProjectSnapshot, now = new Date()): AttentionReason[] {
 	const reasons: AttentionReason[] = [];
-	if (project.git.dirtyFiles > 0) {
+	if ((project.git.dirtyFiles ?? 0) > 0) {
 		reasons.push({ key: 'dirty', label: `${project.git.dirtyFiles} uncommitted` });
 	}
 	if ((project.git.ahead ?? 0) > 0) {
@@ -31,9 +31,14 @@ export function attentionReasons(project: ProjectSnapshot, now = new Date()): At
 	}
 	const pullRequests = project.github.openPullRequests ?? 0;
 	if (pullRequests > 0) {
-		reasons.push({ key: 'prs', label: `${pullRequests} open PR${pullRequests === 1 ? '' : 's'}` });
+		reasons.push({
+			key: 'prs',
+			label: `${pullRequests} ${project.github.state === 'stale' ? 'cached ' : ''}open PR${pullRequests === 1 ? '' : 's'}`
+		});
 	}
-	if (project.status.stale) {
+	if (project.lifecycle === 'active' && !project.status.present) {
+		reasons.push({ key: 'missing-status', label: 'Missing status' });
+	} else if (project.status.stale) {
 		reasons.push({ key: 'stale', label: staleLabel(project.status.updatedAt, now) });
 	}
 	return reasons;
@@ -44,7 +49,8 @@ const WEIGHTS: Record<AttentionReason['key'], number> = {
 	ahead: 8,
 	behind: 4,
 	prs: 2,
-	stale: 1
+	stale: 1,
+	'missing-status': 1
 };
 
 /** Higher = more urgent; 0 = nothing outstanding. */

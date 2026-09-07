@@ -1,64 +1,67 @@
-# Privacy and safety
+# Privacy, backup and hosting
 
-## Recommended: local UI and private data
+The normal Cadence dashboard runs on your computer. It reads registered project folders and your
+workspace records without uploading them to the hosted demo or an AI provider.
 
-Cadence's normal dashboard is designed to stay on your computer. `pnpm dev` starts the app locally,
-where it reads only the project folders you have registered. Cadence is not a hosted account and
-does not upload your dashboard or workspace records.
+## What stays local
 
-Keep `cadence-workspace` private by default. Either create it as a private Git repository or leave
-it without a remote. This repository may contain client names, project paths, status notes, plans,
-decisions, meetings, and other project context even when the source repositories themselves are
-public.
+Keep `cadence-workspace` private. It may contain client names, paths, plans, decisions and status
+notes even when some of your source repositories are public. You can keep it in a private Git
+repository or use another reliable backup without adding a remote.
 
-Treat `cadence-workspace` as the folder you must keep safe. Back it up with a private Git remote or a
-reliable backup of your computer. Cadence itself is replaceable: if the app folder is lost, download
-or clone it from GitHub again, install it, and point it at your backed-up `cadence-workspace`.
+The app reads configured paths, limits Markdown reads, disables raw HTML in previews and runs Git
+with argument arrays. These are read boundaries for a trusted local workspace; they are not an OS
+sandbox. See the [data reference](data-contract.md#file-read-boundaries) for their scope.
 
-Reinstalling Cadence does not recreate your data. If every copy of `cadence-workspace` is lost, its
-plans, decisions, notes, and workspace configuration are lost too.
+`pnpm context`, `pnpm validate` and `pnpm refresh --local-only` do not query GitHub or an AI provider.
+Normal `pnpm refresh` uses your authenticated `gh` session to request GitHub metadata. Opening a
+GitHub link in the dashboard also takes you to GitHub.
 
-```bash
-pnpm validate
-pnpm refresh --local-only
-pnpm dev
-```
+Your own coding agent is separate from Cadence. If you allow a local or hosted agent to read files,
+its permissions and privacy terms govern that access.
 
-The local application reads only configured paths. It renders bounded Markdown with raw HTML
-disabled and runs Git commands with argument arrays rather than shell interpolation.
+## Back up and restore
 
-Cadence does not send workspace content to an AI provider. A user may independently authorize their
-own local or hosted coding agent to inspect files; that agent's privacy terms and permissions remain
-the user's responsibility.
+Back up `cadence-workspace` with a private Git remote or a reliable computer backup. If you use Git,
+remember to commit and push the records you want the remote backup to contain. Cadence does not
+perform those steps for you. Back up source repositories separately as usual.
 
-`pnpm context`, `pnpm validate`, and local-only refresh do not contact an AI provider. Normal refresh
-may query GitHub through the user's authenticated `gh` session; `--local-only` disables those network
-queries while retaining read-only local Git inspection.
+To restore the dashboard after losing the app checkout:
 
-## Optional: public cloud demo
+1. Clone Cadence again and run `pnpm install`.
+2. Restore `cadence-workspace` beside it, or [set its location](commands.md#choose-a-data-folder).
+3. Run `pnpm validate` to check the restored configuration.
+4. Run `pnpm refresh --local-only`, then `pnpm dev`.
 
-The public site is a separate demo build backed only by deliberately public committed data. It has
-no storage bindings, account system, repository credentials, or access to the local provider. The
-Cloudflare build excludes local filesystem and Git inspection code; it cannot turn the real local
-dashboard into a hosted service.
+The app and refresh cache can be recreated. Reinstalling Cadence cannot recover records if every
+copy of `cadence-workspace` is lost.
 
-Before deploying a fork:
+## Publish a fictional demo
 
-1. Keep the real `cadence-workspace` repository private.
-2. Replace or review `src/lib/server/demo-workspace.ts` and every committed example so all names,
-   paths, summaries, and records are safe to publish.
-3. Update `wrangler.jsonc` for your Cloudflare account, Worker name, and domain.
-4. Build and inspect the demo target, run a Wrangler dry run, then deploy.
+The public site uses a separate build with a fictional provider. It has no local filesystem or Git
+inspection code, workspace credentials, account system or storage bindings. Deploying that build
+does not host your real dashboard.
+
+To publish your own demo:
+
+1. Keep your real workspace data outside the application checkout and private.
+2. Review the fictional fixture in `src/lib/server/demo-workspace.ts` and the committed examples.
+   Every name, path and record in them must be suitable for public sharing.
+3. Update `wrangler.jsonc` for your Cloudflare account, Worker name and domain.
+4. Build the demo, inspect it locally, then run a dry run before deploying.
 
 ```bash
 pnpm build:demo
+pnpm preview:demo
+```
+
+After inspecting the preview, stop it and deploy only when you intend to publish:
+
+```bash
 pnpm exec wrangler deploy --dry-run
 pnpm deploy
 ```
 
-Only the demo fixture is included in that deployment. Never copy a private `cadence-workspace`
-repository into the Cadence application or its build output.
-
-If you intentionally make a previously private application or data repository public, create a
-clean Git history after removing private material. Deleting private files in a later commit does not
-remove them from earlier commits.
+Only the demo provider's fixture is included. Do not copy private workspace files into the app or
+its build output. If you make a Git repository public, review its history as well as its current
+files: deleting private material in a later commit does not remove it from earlier commits.

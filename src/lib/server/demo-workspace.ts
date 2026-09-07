@@ -1,7 +1,10 @@
+import { selectRecord } from '$lib/workspace/navigation';
+import { githubTotals } from '$lib/workspace/data-quality';
 import type {
 	GithubSnapshot,
 	GitSnapshot,
 	ProjectDetail,
+	PreviewSelection,
 	ProjectSnapshot,
 	StatusFreshness,
 	WorkspaceLoadResult,
@@ -143,33 +146,30 @@ const workspace: WorkspaceSnapshot = {
 	summary: {
 		total: projects.length,
 		active: projects.filter((project) => project.lifecycle === 'active').length,
-		dirty: projects.filter((project) => project.git.dirtyFiles > 0).length,
+		dirty: projects.filter((project) => (project.git.dirtyFiles ?? 0) > 0).length,
 		missing: projects.filter((project) => !project.exists).length,
 		fullyStandardized: projects.filter((project) => project.conventionScore === 100).length,
 		behindUpstream: projects.filter((project) => (project.git.behind ?? 0) > 0).length,
 		staleStatus: projects.filter((project) => project.status.stale).length,
-		openIssues: projects.reduce((total, project) => total + (project.github.openIssues ?? 0), 0),
-		openPullRequests: projects.reduce(
-			(total, project) => total + (project.github.openPullRequests ?? 0),
-			0
-		)
+		openIssues: githubTotals(projects).issues.value,
+		openPullRequests: githubTotals(projects).prs.value
 	}
 };
 
-function detail(project: ProjectSnapshot): ProjectDetail {
+function detail(project: ProjectSnapshot) {
 	return {
 		project,
 		documents: [
 			{
 				path: 'README.md',
 				title: project.name,
-				kind: 'readme',
+				kind: 'readme' as const,
 				html: `<h1>${project.name}</h1><p>${project.summary}</p><h2>Development</h2><p>This fictional document demonstrates Cadence's project knowledge view.</p>`
 			},
 			{
 				path: 'AGENTS.md',
 				title: `${project.name} agent guide`,
-				kind: 'agents',
+				kind: 'agents' as const,
 				html: '<h1>Agent guide</h1><p>Read the repository documentation, preserve unrelated changes, and run the project checks before handoff.</p>'
 			}
 		],
@@ -177,14 +177,14 @@ function detail(project: ProjectSnapshot): ProjectDetail {
 			{
 				path: `projects/${project.path}/STATUS.md`,
 				title: `${project.name} status`,
-				kind: 'status',
+				kind: 'status' as const,
 				html: '<h1>Current status</h1><p>The core workflow is healthy. The next focus is clearer operational documentation.</p>',
 				sourceUrl: null
 			},
 			{
 				path: `projects/${project.path}/decisions/local-first.md`,
 				title: 'Keep project knowledge local-first',
-				kind: 'decision',
+				kind: 'decision' as const,
 				html: '<h1>Keep project knowledge local-first</h1><p>Durable context remains in versioned files that people and their chosen tools can inspect.</p>',
 				sourceUrl: null
 			}
@@ -207,7 +207,26 @@ export async function loadWorkspace(): Promise<WorkspaceLoadResult> {
 	return { state: 'ready', mode: 'demo', workspace };
 }
 
-export async function getProjectDetail(id: string): Promise<ProjectDetail | null> {
+export async function getProjectDetail(
+	id: string,
+	selection: PreviewSelection = {}
+): Promise<ProjectDetail | null> {
 	const project = projects.find((candidate) => candidate.id === id);
-	return project ? detail(project) : null;
+	if (!project) return null;
+	const full = detail(project);
+	const selectedRecord = selectRecord(full.records, selection.record ?? null) ?? null;
+	const selectedDocument =
+		full.documents.find((item) => item.path === selection.document) ?? full.documents[0] ?? null;
+	return {
+		...full,
+		records: full.records.map(({ path, title, kind, sourceUrl }) => ({
+			path,
+			title,
+			kind,
+			sourceUrl
+		})),
+		documents: full.documents.map(({ path, title, kind }) => ({ path, title, kind })),
+		selectedRecord,
+		selectedDocument
+	};
 }

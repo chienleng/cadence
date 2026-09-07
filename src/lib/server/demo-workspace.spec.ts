@@ -27,6 +27,8 @@ describe('demo workspace provider', () => {
 	it('supports the shared detail interface', async () => {
 		const detail = await getProjectDetail('harbour-api');
 		expect(detail?.records[0]?.path).toMatch(/^projects\//);
-		expect(detail?.documents[0]?.html).toContain('<h1>');
+		expect(detail?.selectedDocument?.html).toContain('<h1>');
+		expect(detail?.documents.every((item) => !('html' in item))).toBe(true);
+		expect(detail?.records.every((item) => !('html' in item))).toBe(true);
 	});
 });

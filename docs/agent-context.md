@@ -1,24 +1,16 @@
-# Agent context discovery
+# Give your agent project context
 
-Cadence keeps project records outside project repositories, so their existence alone cannot make
-an agent read them. Discovery is an explicit, testable convention:
+Cadence stores project records outside the source repositories. An agent needs an instruction to
+find those records and read them before starting work.
 
-1. The workspace-level `AGENTS.md` tells agents to run Cadence before planning or substantial work.
-2. `pnpm context --cwd <path>` maps the working directory to the most specific registered project
-   and prints its status and related plans, decisions, meetings, notes, and inbox records.
-3. `pnpm context --overview` answers workspace-wide status questions ("what's my latest status?")
-   from any directory: statuses ordered by recency, recent records, and repository activity joined
-   from the refresh snapshot when present.
-4. `pnpm context --audit` reports whether each project is discoverable and whether its source and
-   status are present and current.
-
-The command is read-only. It never edits a project, creates records, or asks an AI provider for
-information. Nested repositories are resolved by the longest registered path match.
+`pnpm context --cwd /path/to/project` finds the most specific registered project for that path and
+prints its status and related record links. Nested projects take precedence over their parents.
+For workspace-wide questions, use `pnpm context --overview`. Both commands are read-only and do
+not call an AI provider.
 
 ## Workspace instruction
 
-The setup agent should add a section like this to the workspace guide, adapting the Cadence path to
-the local checkout:
+Add a section like this to the workspace-level `AGENTS.md`, replacing the Cadence path:
 
 ````md
 ## Cadence context
@@ -32,57 +24,69 @@ pnpm --dir /path/to/cadence context --cwd "$PWD"
 Read the reported status and relevant plans and decisions. Report missing or uncertain context;
 do not invent it. GitHub Issues remain the source of actionable work.
 
-When asked to remember something about a project, record it in that project's workspace records —
-status and follow-ups in `STATUS.md`, working knowledge in `notes/`, decisions in `decisions/` —
-never in vendor-specific agent memory. The workspace records are the single source of truth.
+Keep the project's STATUS.md and relevant plans current after substantive work. Distinguish local
+changes, commits, releases and verified deployments. Preserve unrelated notes and parked work.
+
+When asked to remember something about a project, use its workspace records: STATUS.md for status
+and follow-ups, notes/ for working knowledge, and decisions/ for decisions. Do not put shared
+project knowledge in vendor-specific agent memory.
 ````
 
-Some agents only inspect repository-local instructions. For those tools, this prints a deterministic
-section for review:
+Keep the canonical guide in `cadence-workspace/workspace/AGENTS.md` and expose it at the real
+workspace root with a copy or symlink. Preserve existing guidance when adopting this convention.
+
+## Discovery inside a project
+
+A tool may read only instructions within the current repository. Do not assume it also loads a
+guide in the parent workspace. Test this from the directory where you normally start the agent.
+
+Cadence can print a deterministic project-level section for review:
 
 ```bash
 pnpm context --cwd /path/to/project --snippet
 ```
 
-Cadence deliberately does not insert or maintain that section. Editing independent repositories is
-an explicit adoption decision.
+Add it to that project's `AGENTS.md` only as an intentional documentation change. Alternatively,
+use a scoped workspace-routing instruction supported by your tool. Cadence does not write either
+kind of instruction itself.
 
-## Vendor compatibility shims
+## Compatibility files
 
-Some tools load a vendor-specific file at the workspace root instead of `AGENTS.md` — Claude Code
-loads `CLAUDE.md`. A shim that merely says "read AGENTS.md first" depends on the model choosing to
-open the guide before acting, and quick tasks routinely skip that read. A shim must load the guide,
-not point at it. For Claude Code, the shim's content should be an import:
+Some tools use a vendor-specific instruction file. Cadence's example includes a Claude Code
+`CLAUDE.md` with an import of the shared guide:
 
 ```md
 @AGENTS.md
-
-The import above inlines AGENTS.md — the canonical, vendor-neutral guide for this workspace — so
-its rules load automatically every session. Follow them before acting on anything.
 ```
 
-Version the canonical shim in the data repository's `workspace/` directory beside `AGENTS.md` and
-copy it to the real workspace root. `pnpm context --audit` reports each known shim file as `ok`
-(load directive present), `pointer-only` (present but only references the guide), or `absent`
-(fine when that vendor's tool is not used).
+Keep the canonical compatibility file beside the guide under `cadence-workspace/workspace/`,
+then expose it at the real workspace root. A plain sentence pointing at the guide is not the same
+as the load directive Cadence checks for. Tools that read `AGENTS.md` directly do not need this file.
 
-Tools that read `AGENTS.md` natively need no shim at the workspace root — OpenAI Codex, which
-originated the convention, loads the guide directly when launched at the workspace root. Native
-readers can still miss the guide from inside a sub-repository: Codex's project scope starts at the
-Git root and walks down, never up into a containing workspace. Close that gap with the per-project
-pointer (`pnpm context --cwd <project> --snippet`), or with a scoped routing rule in the tool's
-global instructions (for Codex, `~/.codex/AGENTS.md`, which loads every session).
+`pnpm context --audit` reports known compatibility files as:
 
-## Audit states
+| State          | Meaning                                                            |
+| -------------- | ------------------------------------------------------------------ |
+| `ok`           | The expected load directive is present.                            |
+| `pointer-only` | The file exists but lacks the load directive.                      |
+| `absent`       | The file does not exist; this is fine if you do not use that tool. |
 
-- `ready`: source, discovery instruction, and a current dated status are present.
-- `no-status`: discovery works, but the project has no `STATUS.md`.
-- `stale`: its status is undated, invalid, or older than 30 days.
-- `undiscoverable`: neither the workspace guide nor a generated project pointer is present.
-- `missing-source`: the registered project directory cannot be found.
+## Check the setup
 
-The audit also reports workspace vendor shims. A `pointer-only` shim references the guide without
-loading it and should have its content replaced with the vendor's load directive.
+```bash
+pnpm context --audit
+```
 
-This cannot force an AI system to obey repository instructions. It closes the silent-discovery gap
-by making the expected behavior deterministic and independently auditable.
+The audit assigns each registered project one state, in this order of precedence:
+
+| State            | Meaning                                                                                |
+| ---------------- | -------------------------------------------------------------------------------------- |
+| `missing-source` | The registered source directory is unavailable.                                        |
+| `undiscoverable` | Neither a recognised workspace instruction nor a generated project pointer is present. |
+| `no-status`      | Discovery is configured, but `STATUS.md` is missing.                                   |
+| `stale`          | The status is undated, has an invalid date, or is older than 30 days.                  |
+| `ready`          | Source, discovery instruction and a current dated status are present.                  |
+
+A `ready` result verifies the files and markers Cadence recognises. It does not prove that an agent
+loaded the guide or followed it. Check your tool's actual behaviour as part of adoption.
+See the [command reference](commands.md#load-project-context) for JSON output and workspace summaries.

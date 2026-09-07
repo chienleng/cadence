@@ -1,6 +1,13 @@
 #!/usr/bin/env node
 
-import { access, readFile, readdir, realpath } from 'node:fs/promises';
+import { realpath } from 'node:fs/promises';
+import {
+	containedDirectory,
+	findFiles,
+	isWithin,
+	readBoundedText,
+	readMarkdown
+} from './lib/files.mjs';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateDataRoot } from './validate.mjs';
@@ -11,23 +18,6 @@ const cacheStaleAfterDays = 7;
 const defaultRecentDays = 14;
 // Vendor files loaded instead of AGENTS.md must load the guide, not point at it.
 const vendorShimFiles = [{ file: 'CLAUDE.md', loadDirective: '@AGENTS.md' }];
-
-async function exists(path) {
-	try {
-		await access(path);
-		return true;
-	} catch {
-		return false;
-	}
-}
-
-async function optionalText(path) {
-	try {
-		return await readFile(path, 'utf8');
-	} catch {
-		return null;
-	}
-}
 
 function markdownTitle(source, fallback) {
 	return source.match(/^#\s+(.+)$/m)?.[1]?.trim() || fallback;
@@ -79,7 +69,8 @@ async function readRefreshCache(now = new Date()) {
 		summary: null,
 		byPath: new Map()
 	};
-	const source = await optionalText(path);
+	const contents = await readBoundedText(cacheRoot, path, 8 * 1024 * 1024);
+	const source = contents && !contents.truncated ? contents.text : null;
 	if (!source) return absent;
 	let snapshot;
 	try {
@@ -108,22 +99,25 @@ function shellArgument(value) {
 }
 
 async function listRecords(projectRecordsRoot, dataRoot) {
+	const canonical = await containedDirectory(dataRoot, projectRecordsRoot);
+	if (!canonical) return [];
+	const paths = await findFiles(canonical, canonical, {
+		accept: (path) =>
+			recordDirectories.has(path.split(sep)[0]) &&
+			path.endsWith('.md') &&
+			path.split(sep).at(-1) !== 'README.md'
+	});
 	const records = [];
-	for (const directoryName of recordDirectories) {
-		const root = resolve(projectRecordsRoot, directoryName);
-		if (!(await exists(root))) continue;
-		const entries = await readdir(root, { recursive: true, withFileTypes: true });
-		for (const entry of entries) {
-			if (!entry.isFile() || entry.name === 'README.md') continue;
-			const absolutePath = resolve(entry.parentPath, entry.name);
-			const source = (await optionalText(absolutePath)) ?? '';
-			records.push({
-				kind: directoryName.replace(/s$/, ''),
-				path: relative(dataRoot, absolutePath).split(sep).join('/'),
-				date: entry.name.match(/^(\d{4}-\d{2}-\d{2})-/)?.[1] ?? null,
-				title: markdownTitle(source, entry.name.replace(/\.md$/, '').replace(/[-_]/g, ' '))
-			});
-		}
+	for (const path of paths) {
+		const source = await readMarkdown(canonical, resolve(canonical, path));
+		if (source === null) continue;
+		const name = path.split(sep).at(-1);
+		records.push({
+			kind: path.split(sep)[0].replace(/s$/, ''),
+			path: relative(dataRoot, resolve(projectRecordsRoot, path)).split(sep).join('/'),
+			date: name.match(/^(\d{4}-\d{2}-\d{2})-/)?.[1] ?? null,
+			title: markdownTitle(source, name.replace(/\.md$/, '').replace(/[-_]/g, ' '))
+		});
 	}
 	return records.sort((a, b) => a.kind.localeCompare(b.kind) || a.path.localeCompare(b.path));
 }
@@ -131,12 +125,18 @@ async function listRecords(projectRecordsRoot, dataRoot) {
 async function inspectProject(validation, project, now = new Date()) {
 	const projectRoot = resolve(validation.workspaceRoot, project.path);
 	const recordsRoot = resolve(validation.dataRoot, 'projects', project.path);
-	const sourceExists = await exists(projectRoot);
+	const sourceRoot = await containedDirectory(validation.workspaceRoot, projectRoot);
+	const sourceExists = sourceRoot !== null;
+	const safeRecordsRoot = await containedDirectory(validation.dataRoot, recordsRoot);
 	const statusPath = resolve(recordsRoot, 'STATUS.md');
-	const statusText = await optionalText(statusPath);
+	const statusText = safeRecordsRoot
+		? await readMarkdown(safeRecordsRoot, resolve(safeRecordsRoot, 'STATUS.md'))
+		: null;
 	const updatedAt = statusDate(statusText);
 	const projectAgentGuide = resolve(projectRoot, 'AGENTS.md');
-	const agentGuideText = sourceExists ? await optionalText(projectAgentGuide) : null;
+	const agentGuideText = sourceRoot
+		? await readMarkdown(sourceRoot, resolve(sourceRoot, 'AGENTS.md'))
+		: null;
 	const cadenceDirectory = relative(projectRoot, appRoot).split(sep).join('/') || '.';
 	const contextCommand = `pnpm --dir ${shellArgument(cadenceDirectory)} context --cwd .`;
 	const pointerPresent = Boolean(
@@ -144,7 +144,7 @@ async function inspectProject(validation, project, now = new Date()) {
 		agentGuideText.includes(contextCommand)
 	);
 	const workspaceGuidePath = resolve(validation.workspaceRoot, 'AGENTS.md');
-	const workspaceGuideText = await optionalText(workspaceGuidePath);
+	const workspaceGuideText = await readMarkdown(validation.workspaceRoot, workspaceGuidePath);
 	const workspaceGuidePresent = Boolean(
 		workspaceGuideText?.includes('## Cadence context') &&
 		workspaceGuideText.includes('context --cwd')
@@ -194,12 +194,18 @@ export async function resolveProjectContext({ cwd = process.cwd(), dataRoot, now
 	if (fromWorkspace === '..' || fromWorkspace.startsWith('../')) {
 		throw new Error(`Working directory is outside the configured workspace: ${target}`);
 	}
-	const project = validation.projects
-		.filter(
-			(candidate) =>
-				fromWorkspace === candidate.path || fromWorkspace.startsWith(`${candidate.path}/`)
-		)
-		.sort((a, b) => b.path.length - a.path.length)[0];
+	const candidates = await Promise.all(
+		validation.projects.map(async (project) => ({
+			project,
+			path: await containedDirectory(
+				validation.workspaceRoot,
+				resolve(validation.workspaceRoot, project.path)
+			)
+		}))
+	);
+	const project = candidates
+		.filter((candidate) => candidate.path && isWithin(candidate.path, target))
+		.sort((a, b) => b.path.length - a.path.length)[0]?.project;
 	if (!project) throw new Error(`No registered Cadence project contains: ${target}`);
 	return inspectProject(validation, project, now);
 }
@@ -207,7 +213,7 @@ export async function resolveProjectContext({ cwd = process.cwd(), dataRoot, now
 async function inspectVendorShims(workspaceRoot) {
 	const shims = [];
 	for (const { file, loadDirective } of vendorShimFiles) {
-		const text = await optionalText(resolve(workspaceRoot, file));
+		const text = await readMarkdown(workspaceRoot, resolve(workspaceRoot, file));
 		shims.push({
 			file,
 			loadDirective,

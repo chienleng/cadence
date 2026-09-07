@@ -9,8 +9,9 @@
 	import ProjectLoading from '$lib/components/ProjectLoading.svelte';
 
 	let { children } = $props();
+	let filtersOpen = $state(false);
 
-	const projectsHref = demoMode ? resolve('/demo') : resolve('/');
+	const projectsHref = demoMode ? resolve('/demo') : resolve('/projects');
 	const projectPathPrefix = demoMode ? '/demo/projects/' : '/projects/';
 	const pathChanged = $derived(
 		navigating.to !== null && navigating.to.url.pathname !== navigating.from?.url.pathname
@@ -30,8 +31,8 @@
 </svelte:head>
 
 <div class="app-shell">
-	<AppSidebar />
-	<div class="app-main" aria-busy={enteringProjects || enteringProject}>
+	<AppSidebar bind:filtersOpen />
+	<div class="app-main" inert={filtersOpen} aria-busy={enteringProjects || enteringProject}>
 		{#if enteringProject}
 			<ProjectLoading detail />
 		{:else if enteringProjects}
