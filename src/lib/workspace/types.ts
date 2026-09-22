@@ -73,7 +73,7 @@ export interface StatusJudgment {
 	judgedAt: string | null;
 	model: string | null;
 	sections: { current: string[]; next: string[]; risks: string[] } | null;
-	/** Probability that the Current section describes finished or parked work. */
+	/** Probability that the status declares the project parked or in maintenance mode. */
 	parked: number | null;
 }
 

@@ -63,7 +63,7 @@ counts include coverage so you can see when a total is partial.
 When `pnpm refresh` runs with `TYPESAFE_API_KEY`, each STATUS.md also gets a judged reading from
 Jev (TypeSafe): which headings play the Current, Next and Risks roles whatever they are called,
 each item's actionability, the last-updated date when the `Updated:` line cannot be parsed by
-convention, and whether the Current section reads as parked. The project page shows the judged
+convention, and whether the status says the project as a whole is parked or in maintenance mode. The project page shows the judged
 reading above the unchanged Markdown, the status date says "judged" when the judgment supplied
 it, and "Looks parked" appears as a badge and a Needs-attention reason for projects that are not
 dormant or archived. A judgment counts only while the file text matches what was judged; after

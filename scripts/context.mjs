@@ -18,7 +18,7 @@ const recordDirectories = new Set(['plans', 'decisions', 'meetings', 'notes', 'i
 const cacheStaleAfterDays = 7;
 const defaultRecentDays = 14;
 // Vendor files loaded instead of AGENTS.md must load the guide, not point at it.
-/** A Noul this high means the Current section reads as finished or parked. */
+/** A Noul this high means the status declares the project parked or in maintenance mode. */
 const parkedThreshold = 0.7;
 const vendorShimFiles = [{ file: 'CLAUDE.md', loadDirective: '@AGENTS.md' }];
 

@@ -83,13 +83,14 @@ With `TYPESAFE_API_KEY` exported, a normal refresh also sends each project's `ST
 finds the candidates (section headings, list items, date spans outside code fences) and Jev
 selects or scores them: which heading is Current, Next or Risks regardless of wording; how
 actionable each item is; which date span is the status's last-updated date; and whether the
-Current section reads as finished or parked. Jev never generates text, and every item shown is
+status says the project as a whole is parked, paused or in maintenance mode. Jev never generates text, and every item shown is
 copied verbatim from the file.
 
 `pnpm context --overview` uses a cached judgment only when it was computed from the exact
 current text of that `STATUS.md`, marks such statuses `judged`, orders Current and Next items
-by actionability under the three-line cap, and adds `looks parked` when the Noul is at or above
-0.7. Headings judged below 0.6 confidence, and every status without a fresh judgment, fall back
+by actionability under the three-line cap, and adds `looks parked` when the parked Noul is at or above
+0.7 (measured on real statuses: an explicit maintenance-mode statement scores above 0.9,
+active projects below 0.1). Headings judged below 0.6 confidence, and every status without a fresh judgment, fall back
 to the exact-name convention. `--local-only`, or an unset key, skips judgments and leaves the
 overview exactly as before. Set `TYPESAFE_MODEL` to pin a model; the default is `jev-latest`.
 

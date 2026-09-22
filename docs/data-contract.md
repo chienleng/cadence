@@ -133,7 +133,8 @@ When `pnpm refresh` runs with `TYPESAFE_API_KEY`, each project's cache entry car
 is the SHA-256 of the judged `STATUS.md`; `status.sections` holds Current, Next and Risks items
 with actionability scores and confidences; `status.headings` records each heading's judged role
 and whether it deferred to the exact-name convention; `status.updatedAt` and `status.parked` are
-the date choice and parked probability. Consumers use an entry only when its hash matches the
+the date choice and the probability that the status declares the project parked or in
+maintenance mode. Consumers use an entry only when its hash matches the
 current file, so an edited status silently returns to the regex convention until the next
 refresh. The dashboard maps entries to `confirmed` (hash matches), `stale` (file changed),
 `failed`, `absent` (skipped or no cache), `unavailable` (unreadable) and `not-applicable`, and

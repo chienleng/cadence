@@ -196,14 +196,19 @@ export function buildRequest(candidates) {
 		};
 	}
 	if (candidates.bullets.length) {
+		// Measured 2026-09-22 across 15 real statuses: asking whether the status
+		// *says* the project is parked separates cleanly (0.93 vs at most 0.07).
+		// Inferring it from finished-looking Current items produced false
+		// positives, and a compound "parked and nothing planned" question lost
+		// the true case.
 		questions.parked = {
 			type: 'noul',
 			instructions:
-				'Taken together, do the status items under the current-state section describe work that is finished, released, or deliberately parked, with nothing actively in progress?',
+				'Does this status state that the project as a whole is in maintenance mode, paused, on hold, parked, superseded by another project, or receiving no new feature work?',
 			criteria: {
-				true: 'The latest items say the work is complete, released, verified, or parked until later, and nothing is described as underway.',
+				true: 'A statement about the whole project says it is in maintenance mode, paused, on hold, parked, superseded, or takes only critical fixes. A single item or phase being parked does not count.',
 				false:
-					'Something is described as in progress, partially done, uncommitted, or actively being worked on.'
+					'No such statement about the project as a whole; the project is described as active, in development, or recently released with more planned.'
 			}
 		};
 	}

@@ -50,7 +50,7 @@ export function judgmentLabel(judgment: StatusJudgment): string {
 }
 
 export const JUDGMENT_DESCRIPTION =
-	'Section roles, item order and the parked signal come from a cached Jev (TypeSafe) reading of STATUS.md made by pnpm refresh. The file text is shown unchanged.';
+	'Section roles, item order and the parked signal (an explicit maintenance-mode or on-hold statement) come from a cached Jev (TypeSafe) reading of STATUS.md made by pnpm refresh. The file text is shown unchanged.';
 
 /** GitHub snapshots older than 24 hours (or without a trustworthy date) are stale. */
 export function staleGithub(fetchedAt: string | null, now = Date.now()): boolean {
