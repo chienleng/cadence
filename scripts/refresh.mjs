@@ -61,7 +61,7 @@ function githubName(remote) {
 }
 
 async function judgeProjectStatus(dataRoot, project, client) {
-	if (!client) return { state: 'skipped' };
+	if (!client || project.lifecycle === 'archived') return { state: 'skipped' };
 	const recordsRoot = await containedDirectory(
 		dataRoot,
 		resolve(dataRoot, 'projects', project.path)
@@ -88,8 +88,10 @@ async function inspectProject(workspaceRoot, project, localOnly) {
 	const repository = branch.ok || status.ok || log.ok;
 	const remoteUrl = remote.ok ? remote.value : null;
 	const nameWithOwner = githubName(remoteUrl);
-	let github = { state: localOnly || !nameWithOwner ? 'skipped' : 'unavailable' };
-	if (!localOnly && nameWithOwner) {
+	// Archived projects keep their remotes as history only; never query them.
+	const queryGithub = !localOnly && nameWithOwner && project.lifecycle !== 'archived';
+	let github = { state: queryGithub ? 'unavailable' : 'skipped' };
+	if (queryGithub) {
 		const response = await run(
 			'gh',
 			['repo', 'view', nameWithOwner, '--json', 'isPrivate,issues,pullRequests,latestRelease'],

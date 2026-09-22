@@ -68,7 +68,9 @@ Refresh reads the registered repositories' branches, working-tree changes, recen
 locally known upstream comparisons. It never runs `git fetch` or changes a repository.
 
 Normal refresh also queries GitHub through your authenticated `gh` session for issue/PR counts,
-repository visibility and the latest release. `--local-only` skips those network queries. Reload
+repository visibility and the latest release. `--local-only` skips those network queries, and
+projects registered with lifecycle `archived` are never queried or judged: their remotes are
+history, not live sources. Reload
 the dashboard after either command.
 
 Each refresh replaces `.workspace-cache/projects.json` in the Cadence checkout. **A local-only
