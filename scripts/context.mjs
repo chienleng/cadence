@@ -8,6 +8,7 @@ import {
 	readBoundedText,
 	readMarkdown
 } from './lib/files.mjs';
+import { cachedStatusJudgment, rankBullets } from './lib/status-judgments.mjs';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateDataRoot } from './validate.mjs';
@@ -17,6 +18,8 @@ const recordDirectories = new Set(['plans', 'decisions', 'meetings', 'notes', 'i
 const cacheStaleAfterDays = 7;
 const defaultRecentDays = 14;
 // Vendor files loaded instead of AGENTS.md must load the guide, not point at it.
+/** A Noul this high means the Current section reads as finished or parked. */
+const parkedThreshold = 0.7;
 const vendorShimFiles = [{ file: 'CLAUDE.md', loadDirective: '@AGENTS.md' }];
 
 function markdownTitle(source, fallback) {
@@ -54,6 +57,17 @@ function statusHighlights(statusText) {
 		if (section && bullet) sections[section].push(bullet.trim());
 	}
 	return sections;
+}
+
+/** Cached Jev judgments replace the exact-name convention when they were
+ * computed from this exact STATUS.md text; otherwise the regex path is used. */
+function judgedHighlights(judgment) {
+	const texts = (bullets) => rankBullets(bullets).map((bullet) => bullet.text);
+	return {
+		current: texts(judgment.sections.current),
+		next: texts(judgment.sections.next),
+		risks: texts(judgment.sections.risks)
+	};
 }
 
 async function readRefreshCache(now = new Date()) {
@@ -256,14 +270,23 @@ export async function workspaceOverview({
 	};
 	const statuses = audit.projects
 		.filter((item) => item.statusPresent)
-		.map((item) => ({
-			path: item.project.path,
-			name: item.project.name,
-			lifecycle: item.project.lifecycle,
-			updatedAt: item.statusUpdatedAt,
-			stale: item.statusStale,
-			...statusHighlights(item.statusText)
-		}))
+		.map((item) => {
+			const judgment = cachedStatusJudgment(
+				cache.byPath.get(item.project.path)?.judgments,
+				item.statusText
+			);
+			const updatedAt = item.statusUpdatedAt ?? judgment?.updatedAt?.value ?? null;
+			return {
+				path: item.project.path,
+				name: item.project.name,
+				lifecycle: item.project.lifecycle,
+				updatedAt,
+				stale: item.statusUpdatedAt ? item.statusStale : staleStatus(updatedAt, now),
+				judged: judgment !== null,
+				parked: judgment?.parked ?? null,
+				...(judgment ? judgedHighlights(judgment) : statusHighlights(item.statusText))
+			};
+		})
 		.sort(byRecency);
 	const missingStatus = audit.projects
 		.filter((item) => !item.statusPresent)
@@ -432,6 +455,11 @@ function printOverview(overview) {
 		.join(', ');
 	console.log('# Cadence workspace overview\n');
 	console.log(`- Projects: ${total} (${counts})`);
+	const judged = overview.statuses.filter((status) => status.judged).length;
+	if (judged)
+		console.log(
+			`- Judgments: ${judged} of ${overview.statuses.length} statuses use cached Jev (TypeSafe) section and ranking judgments`
+		);
 	if (overview.cache.present) {
 		const age = `${overview.cache.ageDays} day${overview.cache.ageDays === 1 ? '' : 's'} old`;
 		const staleHint = overview.cache.stale ? '; old — run `pnpm refresh`' : '';
@@ -447,8 +475,12 @@ function printOverview(overview) {
 	if (overview.statuses.length) {
 		console.log('## Statuses by recency\n');
 		for (const status of overview.statuses) {
+			const markers = [];
+			if (status.judged) markers.push('judged');
+			if (status.parked !== null && status.parked >= parkedThreshold)
+				markers.push(`looks parked (${status.parked.toFixed(2)})`);
 			console.log(
-				`### ${status.path} — ${status.stale ? 'stale' : 'current'} (${status.updatedAt ?? 'undated'})\n`
+				`### ${status.path} — ${status.stale ? 'stale' : 'current'} (${status.updatedAt ?? 'undated'})${markers.length ? ` · ${markers.join(' · ')}` : ''}\n`
 			);
 			printHighlightGroup('Current', status.current);
 			printHighlightGroup('Next', status.next);

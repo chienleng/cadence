@@ -19,6 +19,7 @@
 		"format": "prettier --write .",
 		"context": "node scripts/context.mjs",
 		"refresh": "node scripts/refresh.mjs",
+		"judgments:report": "node scripts/judgments-report.mjs",
 		"validate": "node scripts/validate.mjs",
 		"test:unit": "vitest",
 		"test": "pnpm test:unit --run",

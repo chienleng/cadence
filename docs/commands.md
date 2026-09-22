@@ -76,6 +76,28 @@ refresh removes previously cached GitHub counts.** A failed GitHub lookup also r
 project's earlier successful result with an unavailable state. See
 [data freshness](data-contract.md#cached-github-data) for the labels and coverage rules.
 
+### TypeSafe judgments
+
+With `TYPESAFE_API_KEY` exported, a normal refresh also sends each project's `STATUS.md` to Jev
+(TypeSafe's System One model) and caches its answers beside the Git and GitHub snapshot. Code
+finds the candidates (section headings, list items, date spans outside code fences) and Jev
+selects or scores them: which heading is Current, Next or Risks regardless of wording; how
+actionable each item is; which date span is the status's last-updated date; and whether the
+Current section reads as finished or parked. Jev never generates text, and every item shown is
+copied verbatim from the file.
+
+`pnpm context --overview` uses a cached judgment only when it was computed from the exact
+current text of that `STATUS.md`, marks such statuses `judged`, orders Current and Next items
+by actionability under the three-line cap, and adds `looks parked` when the Noul is at or above
+0.7. Headings judged below 0.6 confidence, and every status without a fresh judgment, fall back
+to the exact-name convention. `--local-only`, or an unset key, skips judgments and leaves the
+overview exactly as before. Set `TYPESAFE_MODEL` to pin a model; the default is `jev-latest`.
+
+`pnpm judgments:report` (add `--json` to post-process) compares the cached judgments with the
+exact-name convention status by status: heading roles, the chosen date, the parked probability,
+and how the top three Current items were reordered, with latency and token counts. Use it to
+inspect disagreements before trusting a threshold.
+
 This ignored snapshot is disposable. It supplies GitHub data to the dashboard and repository
 activity to `pnpm context --overview`. Tests can redirect it with `CADENCE_CACHE_ROOT`. Refresh
 never checks out, pulls, merges, resets, stashes or fetches monitored repositories.

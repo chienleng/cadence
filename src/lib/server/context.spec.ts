@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, rm, rename, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -172,6 +173,66 @@ describe('workspace overview', () => {
 		const text = await context(['--overview']);
 		expect(text).toContain('Refresh cache: missing');
 		expect(text).toContain('pnpm refresh');
+	});
+
+	it('uses cached Jev judgments only when they match the current STATUS.md text', async () => {
+		const statusText =
+			'# Harbour status\n\n## Current work\n\n* Released 1.2.0.\n* Migration half done, uncommitted.\n\n## Up next\n\n1. Verify the deploy.\n';
+		await write(resolve(dataRoot, 'projects/apps/harbour/STATUS.md'), statusText);
+		const bullet = (id: string, text: string, score: number) => ({
+			id,
+			text,
+			score,
+			confidence: 0.8
+		});
+		const judgments = {
+			schemaVersion: 1,
+			state: 'updated',
+			sourceHash: createHash('sha256').update(statusText).digest('hex'),
+			status: {
+				sections: {
+					current: [
+						bullet('B01', 'Released 1.2.0.', 0.1),
+						bullet('B02', 'Migration half done, uncommitted.', 2.9)
+					],
+					next: [bullet('B03', 'Verify the deploy.', 2.5)],
+					risks: []
+				},
+				headings: [],
+				updatedAt: { value: '2026-09-20', confidence: 0.9 },
+				parked: 0.05,
+				deferred: []
+			}
+		};
+		const snapshot = (entry: unknown) => ({
+			schemaVersion: 1,
+			generatedAt: new Date().toISOString(),
+			mode: 'local-and-github',
+			projects: [
+				{ path: 'apps/harbour', git: null, github: { state: 'skipped' }, judgments: entry }
+			]
+		});
+
+		await write(resolve(cacheRoot, 'projects.json'), JSON.stringify(snapshot(judgments)));
+		const judged = JSON.parse(await context(['--overview', '--json']));
+		expect(judged.statuses[0].judged).toBe(true);
+		expect(judged.statuses[0].current).toEqual([
+			'Migration half done, uncommitted.',
+			'Released 1.2.0.'
+		]);
+		expect(judged.statuses[0].next).toEqual(['Verify the deploy.']);
+		expect(judged.statuses[0].updatedAt).toBe('2026-09-20');
+		expect(judged.statuses[0].parked).toBe(0.05);
+		expect(await context(['--overview'])).toContain('apps/harbour — current (2026-09-20) · judged');
+
+		await write(
+			resolve(cacheRoot, 'projects.json'),
+			JSON.stringify(snapshot({ ...judgments, sourceHash: 'stale' }))
+		);
+		const regex = JSON.parse(await context(['--overview', '--json']));
+		expect(regex.statuses[0].judged).toBe(false);
+		expect(regex.statuses[0].current).toEqual([]);
+		expect(regex.statuses[0].updatedAt).toBeNull();
 	});
 
 	it('joins repository activity from the refresh cache', async () => {

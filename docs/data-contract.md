@@ -126,6 +126,17 @@ A failed working-tree inspection is unknown, never clean. Missing checkouts and 
 are distinct states. Ahead/behind compares locally known refs; Cadence never fetches refs or
 verifies the live remote.
 
+## Cached judgments
+
+When `pnpm refresh` runs with `TYPESAFE_API_KEY`, each project's cache entry carries a
+`judgments` object: `state` is `updated`, `failed`, `skipped` or `not-applicable`; `sourceHash`
+is the SHA-256 of the judged `STATUS.md`; `status.sections` holds Current, Next and Risks items
+with actionability scores and confidences; `status.headings` records each heading's judged role
+and whether it deferred to the exact-name convention; `status.updatedAt` and `status.parked` are
+the date choice and parked probability. Consumers use an entry only when its hash matches the
+current file, so an edited status silently returns to the regex convention until the next
+refresh. See [TypeSafe judgments](commands.md#typesafe-judgments).
+
 ## File read boundaries
 
 The app and CLI resolve configured roots and source paths before checking containment. A source

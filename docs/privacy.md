@@ -14,8 +14,11 @@ with argument arrays. These are read boundaries for a trusted local workspace; t
 sandbox. See the [data reference](data-contract.md#file-read-boundaries) for their scope.
 
 `pnpm context`, `pnpm validate` and `pnpm refresh --local-only` do not query GitHub or an AI provider.
-Normal `pnpm refresh` uses your authenticated `gh` session to request GitHub metadata. Opening a
-GitHub link in the dashboard also takes you to GitHub.
+Normal `pnpm refresh` uses your authenticated `gh` session to request GitHub metadata. If
+`TYPESAFE_API_KEY` is exported, it also sends each project's `STATUS.md` text to TypeSafe's API so
+Jev can classify its sections; nothing else is sent, the key stays in your shell, and the cached
+answers live in the same ignored snapshot. Opening a GitHub link in the dashboard also takes you
+to GitHub.
 
 Your own coding agent is separate from Cadence. If you allow a local or hosted agent to read files,
 its permissions and privacy terms govern that access.

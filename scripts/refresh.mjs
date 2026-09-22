@@ -6,7 +6,8 @@ import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { validateDataRoot } from './validate.mjs';
-import { containedPath } from './lib/files.mjs';
+import { containedDirectory, containedPath, readMarkdown } from './lib/files.mjs';
+import { createTypeSafeClient, judgeStatus } from './lib/status-judgments.mjs';
 
 const execFileAsync = promisify(execFile);
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -17,7 +18,10 @@ if (args.has('--help')) {
 	console.log(`Usage: pnpm refresh [--local-only]
 
 Reads local Git state and writes only .workspace-cache/projects.json.
---local-only also skips optional GitHub queries. Cadence never fetches or changes project repositories.`);
+--local-only also skips optional GitHub queries and TypeSafe judgments.
+With TYPESAFE_API_KEY set, each STATUS.md is judged by Jev (TypeSafe) and the
+answers are cached for pnpm context; without it, judgments are skipped.
+Cadence never fetches or changes project repositories.`);
 	process.exit(0);
 }
 const unknown = [...args].filter((argument) => !allowedArgs.has(argument));
@@ -54,6 +58,19 @@ function githubName(remote) {
 	} catch {
 		return null;
 	}
+}
+
+async function judgeProjectStatus(dataRoot, project, client) {
+	if (!client) return { state: 'skipped' };
+	const recordsRoot = await containedDirectory(
+		dataRoot,
+		resolve(dataRoot, 'projects', project.path)
+	);
+	const statusText = recordsRoot
+		? await readMarkdown(recordsRoot, resolve(recordsRoot, 'STATUS.md'))
+		: null;
+	if (statusText === null) return { state: 'not-applicable', reason: 'No STATUS.md.' };
+	return judgeStatus(statusText, client);
 }
 
 async function inspectProject(workspaceRoot, project, localOnly) {
@@ -117,20 +134,34 @@ if (!validation.valid) {
 	process.exit(1);
 }
 
+const localOnly = args.has('--local-only');
+const apiKey = process.env.TYPESAFE_API_KEY;
+const client =
+	!localOnly && apiKey
+		? createTypeSafeClient({ apiKey, model: process.env.TYPESAFE_MODEL || undefined })
+		: null;
 const projects = [];
 for (const project of validation.projects) {
-	projects.push(await inspectProject(validation.workspaceRoot, project, args.has('--local-only')));
+	const [inspected, judgments] = await Promise.all([
+		inspectProject(validation.workspaceRoot, project, localOnly),
+		judgeProjectStatus(validation.dataRoot, project, client)
+	]);
+	projects.push({ ...inspected, judgments });
 }
+const judged = projects.filter((project) => project.judgments.state === 'updated');
+const judgmentFailures = projects.filter((project) => project.judgments.state === 'failed');
 const snapshot = {
 	schemaVersion: 1,
 	generatedAt: new Date().toISOString(),
 	workspaceRoot: validation.workspaceRoot,
-	mode: args.has('--local-only') ? 'local-only' : 'local-and-github',
+	mode: localOnly ? 'local-only' : 'local-and-github',
 	summary: {
 		total: projects.length,
 		repositories: projects.filter((project) => project.git).length,
 		dirty: projects.filter((project) => project.git?.dirtyFiles > 0).length,
-		githubFailures: projects.filter((project) => project.github.state === 'failed').length
+		githubFailures: projects.filter((project) => project.github.state === 'failed').length,
+		judged: judged.length,
+		judgmentFailures: judgmentFailures.length
 	},
 	projects
 };
@@ -146,3 +177,18 @@ await rename(temporaryPath, cachePath);
 console.log(
 	`Refreshed ${projects.length} projects without changing monitored repositories; cache: ${relative(appRoot, cachePath) || '.'}.`
 );
+if (client) {
+	const tokens = judged.reduce(
+		(sum, project) =>
+			sum +
+			(project.judgments.usage?.inputTokens ?? 0) +
+			(project.judgments.usage?.outputTokens ?? 0),
+		0
+	);
+	const latency = judged.reduce((sum, project) => sum + (project.judgments.latencyMs ?? 0), 0);
+	console.log(
+		`Judged ${judged.length} statuses with ${client.model} (${tokens} tokens, ${latency} ms total)${judgmentFailures.length ? `; ${judgmentFailures.length} failed` : ''}.`
+	);
+	for (const project of judgmentFailures)
+		console.error(`- ${project.path}: ${project.judgments.error}`);
+} else if (!localOnly) console.log('TypeSafe judgments skipped: set TYPESAFE_API_KEY to enable.');
