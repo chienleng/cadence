@@ -115,6 +115,10 @@ than 24 hours, or with a missing, invalid or future timestamp, is stale. Known s
 visible; failed, unavailable or missing counts remain unknown. Zero means a successful cached
 response explicitly reported zero.
 
+A failed lookup keeps the last line of the command's error output (for example GitHub reporting
+that a repository cannot be found), shown on hover in the dashboard, in the project's GitHub
+refresh row, and under repository activity in `pnpm context --overview`.
+
 Totals show how many applicable projects supplied each count and are labelled partial when some
 are missing. Projects known not to use a GitHub remote are excluded from that count's coverage.
 

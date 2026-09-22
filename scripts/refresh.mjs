@@ -9,6 +9,7 @@ import { validateDataRoot } from './validate.mjs';
 import { containedDirectory, containedPath, readMarkdown } from './lib/files.mjs';
 import { createTypeSafeClient, judgeStatus, statusHash } from './lib/status-judgments.mjs';
 import { judgeGuide } from './lib/guide-judgments.mjs';
+import { count, errorText } from './lib/commands.mjs';
 
 const execFileAsync = promisify(execFile);
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -42,7 +43,7 @@ async function run(command, commandArgs, timeout = 10_000) {
 	} catch (error) {
 		return {
 			ok: false,
-			error: error instanceof Error ? error.message.split('\n').at(-1) : String(error)
+			error: errorText(error)
 		};
 	}
 }
@@ -163,8 +164,9 @@ async function inspectProject(workspaceRoot, project, localOnly) {
 			}
 		} else github = { state: 'failed', error: response.error };
 	}
+	// "<behind> <ahead>" from --left-right; anything unparseable is unknown, not zero.
 	const [behind = null, ahead = null] = divergence.ok
-		? divergence.value.split(/\s+/).map(Number)
+		? divergence.value.trim().split(/\s+/).map(count)
 		: [];
 	const [lastCommitAt = null, lastCommitHash = null, lastCommitSubject = null] = log.ok
 		? log.value.split('\0')

@@ -397,6 +397,21 @@ describe('data availability', () => {
 			if (state === 'skipped') expect(snapshot.projects[0].github.fetchedAt).toBeNull();
 		}
 	);
+	it('keeps the failure reason for failed lookups and drops it otherwise', async () => {
+		await cacheEntry({ state: 'failed', error: 'GraphQL: Could not resolve to a Repository.' });
+		let snapshot = await scanWorkspace();
+		expect(snapshot.projects[0].github).toMatchObject({
+			state: 'failed',
+			error: 'GraphQL: Could not resolve to a Repository.'
+		});
+		await cacheEntry({ state: 'failed', error: '' });
+		snapshot = await scanWorkspace();
+		expect(snapshot.projects[0].github.error).toBeNull();
+		await cacheEntry({ state: 'unavailable', error: 'ignored' });
+		snapshot = await scanWorkspace();
+		expect(snapshot.projects[0].github.error).toBeNull();
+	});
+
 	it('retains confirmed zeros and makes missing or malformed counts unknown', async () => {
 		await cacheEntry({
 			state: 'updated',

@@ -304,6 +304,18 @@ describe('workspace overview', () => {
 
 	it('joins repository activity from the refresh cache', async () => {
 		await write(
+			resolve(dataRoot, 'projects/tools/anchor/project.json'),
+			JSON.stringify({
+				schemaVersion: 1,
+				path: 'tools/anchor',
+				name: 'Anchor',
+				group: 'Tools',
+				summary: 'Another fixture.',
+				lifecycle: 'active'
+			})
+		);
+		await write(resolve(workspaceRoot, 'tools/anchor/README.md'), '# Anchor\n');
+		await write(
 			resolve(cacheRoot, 'projects.json'),
 			JSON.stringify({
 				schemaVersion: 1,
@@ -323,6 +335,11 @@ describe('workspace overview', () => {
 							behind: 0
 						},
 						github: { state: 'updated', pullRequests: { totalCount: 2 }, issues: { totalCount: 0 } }
+					},
+					{
+						path: 'tools/anchor',
+						git: null,
+						github: { state: 'failed', error: 'GraphQL: Could not resolve to a Repository.' }
 					}
 				]
 			})
@@ -342,6 +359,12 @@ describe('workspace overview', () => {
 		expect(overview.activity.recentCommits[0].subject).toBe('Ship the harbour');
 		expect(overview.activity.openPullRequests).toEqual([{ path: 'apps/harbour', count: 2 }]);
 		expect(overview.activity.openIssues).toEqual([]);
+		expect(overview.activity.githubFailures).toEqual([
+			{ path: 'tools/anchor', error: 'GraphQL: Could not resolve to a Repository.' }
+		]);
+		expect(await context(['--overview'])).toContain(
+			'- tools/anchor — GraphQL: Could not resolve to a Repository.'
+		);
 	});
 
 	it('filters recent records to the requested window', async () => {

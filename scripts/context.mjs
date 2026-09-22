@@ -350,6 +350,9 @@ export async function workspaceOverview({
 			.map((item) => cache.byPath.get(item.project.path))
 			.filter((snapshot) => snapshot);
 		activity = {
+			githubFailures: snapshots
+				.filter((snapshot) => snapshot.github?.state === 'failed')
+				.map((snapshot) => ({ path: snapshot.path, error: snapshot.github.error ?? null })),
 			dirty: snapshots
 				.filter((snapshot) => snapshot.git?.dirtyFiles > 0)
 				.map((snapshot) => ({
@@ -600,6 +603,11 @@ function printOverview(overview) {
 			console.log(
 				`Open issues: ${overview.activity.openIssues.map((item) => `${item.path} (${item.count})`).join(', ')}`
 			);
+		if (overview.activity.githubFailures.length) {
+			console.log('GitHub refresh failures (counts unknown):');
+			for (const item of overview.activity.githubFailures)
+				console.log(`- ${item.path}${item.error ? ` — ${item.error}` : ''}`);
+		}
 		console.log('');
 	}
 	console.log('GitHub Issues remain the source of actionable work.');

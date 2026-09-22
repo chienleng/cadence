@@ -7,8 +7,8 @@
 	import GithubStatus from './GithubStatus.svelte';
 	import {
 		gitBranchLabel,
+		githubDetail,
 		githubHasData,
-		githubTimestamp,
 		judgmentConfirmed,
 		judgmentLabel,
 		looksParked,
@@ -334,7 +334,7 @@
 					</li>
 					{#if data.project.github.state !== 'not-applicable'}
 						<li>
-							<span>GitHub refresh</span><strong>{githubTimestamp(data.project.github)}</strong>
+							<span>GitHub refresh</span><strong>{githubDetail(data.project.github)}</strong>
 						</li>
 					{/if}
 					{#if githubHasData(data.project.github)}

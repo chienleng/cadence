@@ -57,6 +57,8 @@ export interface GithubRelease {
 /** GitHub data comes from the refresh cache; missing counts are never confirmed zeros. */
 export interface GithubSnapshot {
 	state: 'ok' | 'stale' | 'failed' | 'unavailable' | 'absent' | 'not-applicable';
+	/** The last line of the failed refresh command, when the state is failed. */
+	error?: string | null;
 	fetchedAt: string | null;
 	isPrivate: boolean | null;
 	openIssues: number | null;

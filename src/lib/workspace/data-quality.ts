@@ -85,6 +85,12 @@ export function githubTimestamp(github: GithubSnapshot): string {
 	return `${githubHasData(github) ? 'Data from' : 'Last attempt'} ${githubDate(github.fetchedAt)}`;
 }
 
+/** Timestamp plus the failure reason, for hover text and detail rows. */
+export function githubDetail(github: GithubSnapshot): string {
+	const reason = github.state === 'failed' && github.error ? ` · ${github.error}` : '';
+	return `${githubTimestamp(github)}${reason}`;
+}
+
 export function githubTotals(projects: ProjectSnapshot[]) {
 	const expected = projects.filter((project) => project.github.state !== 'not-applicable');
 	function total(field: 'openIssues' | 'openPullRequests') {

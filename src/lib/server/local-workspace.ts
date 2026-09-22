@@ -468,6 +468,10 @@ async function readGithubCache(): Promise<{
 				byPath.set(entry.path, {
 					...base,
 					state,
+					error:
+						state === 'failed' && typeof github.error === 'string' && github.error
+							? github.error.slice(0, 300)
+							: null,
 					fetchedAt: state === 'absent' ? null : fetchedAt
 				});
 				continue;

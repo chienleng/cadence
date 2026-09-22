@@ -143,7 +143,13 @@ const projects: ProjectSnapshot[] = [
 			ahead: 2,
 			commitsByWeek: [0, 0, 1, 0, 2, 1, 0, 3, 2, 4, 1, 2]
 		}),
-		github: github(2, 0, { isPrivate: true }),
+		github: {
+			...github(2, 0, { isPrivate: true }),
+			state: 'failed',
+			error: "GraphQL: Could not resolve to a Repository with the name 'northstar/signal-console'.",
+			openIssues: null,
+			openPullRequests: null
+		},
 		status: status(5, {
 			...EMPTY_JUDGMENT,
 			state: 'failed',
