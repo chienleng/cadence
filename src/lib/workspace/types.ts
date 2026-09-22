@@ -106,8 +106,10 @@ export interface WorkspaceSnapshot {
 	root: string;
 	generatedAt: string;
 	projects: ProjectSnapshot[];
+	/** Counts other than total and archived exclude archived projects. */
 	summary: {
 		total: number;
+		archived: number;
 		active: number;
 		dirty: number;
 		missing: number;

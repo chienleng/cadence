@@ -105,7 +105,7 @@
 	</h1>
 
 	{#if !hasFilters}
-		<AttentionStrip projects={workspace.projects} {demo} />
+		<AttentionStrip projects={filteredProjects} {demo} />
 		<SummaryStrip {workspace} />
 	{/if}
 
@@ -118,7 +118,8 @@
 			aria-live="polite"
 			aria-atomic="true"
 		>
-			{filteredProjects.length} of {workspace.summary.total} projects
+			{filteredProjects.length} of {workspace.summary.total} projects{#if filters.lifecycles.length === 0 && workspace.summary.archived > 0}
+				· {workspace.summary.archived} archived hidden{/if}
 		</span>
 		<div role="group" aria-label="Project view">
 			<Switch size="sm" buttons={viewOptions} selected={filters.view} onchange={setView} />

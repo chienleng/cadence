@@ -141,6 +141,20 @@ describe('applyFilters', () => {
 		expect(applyFilters(projects, { ...state, query: 'api' }).map((p) => p.id)).toEqual(['a']);
 	});
 
+	it('hides archived projects unless a lifecycle facet names them', () => {
+		const mixed = [
+			project({ id: 'live' }),
+			project({ id: 'old', lifecycle: 'archived' }),
+			project({ id: 'idle', lifecycle: 'dormant' })
+		];
+		const ids = (patch: Partial<typeof state>) =>
+			applyFilters(mixed, { ...state, ...patch }).map((item) => item.id);
+		expect(ids({})).toEqual(['live', 'idle']);
+		expect(ids({ query: 'fixture' })).toEqual(['live', 'idle']);
+		expect(ids({ lifecycles: ['archived'] })).toEqual(['old']);
+		expect(ids({ lifecycles: ['active', 'archived'] })).toEqual(['live', 'old']);
+	});
+
 	it('filters by facet lists', () => {
 		expect(applyFilters(projects, { ...state, groups: ['Libraries'] }).map((p) => p.id)).toEqual([
 			'b'

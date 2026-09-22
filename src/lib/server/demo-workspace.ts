@@ -1,5 +1,6 @@
 import { selectRecord } from '$lib/workspace/navigation';
-import { EMPTY_JUDGMENT, githubTotals, judgmentConfirmed } from '$lib/workspace/data-quality';
+import { EMPTY_JUDGMENT } from '$lib/workspace/data-quality';
+import { workspaceSummary } from '$lib/workspace/summary';
 import type {
 	GithubSnapshot,
 	GitSnapshot,
@@ -190,18 +191,7 @@ const workspace: WorkspaceSnapshot = {
 	root: 'Fictional workspace · no repository data is loaded',
 	generatedAt: new Date().toISOString(),
 	projects,
-	summary: {
-		total: projects.length,
-		active: projects.filter((project) => project.lifecycle === 'active').length,
-		dirty: projects.filter((project) => (project.git.dirtyFiles ?? 0) > 0).length,
-		missing: projects.filter((project) => !project.exists).length,
-		fullyStandardized: projects.filter((project) => project.conventionScore === 100).length,
-		behindUpstream: projects.filter((project) => (project.git.behind ?? 0) > 0).length,
-		staleStatus: projects.filter((project) => project.status.stale).length,
-		judgedStatus: projects.filter((project) => judgmentConfirmed(project.status.judgment)).length,
-		openIssues: githubTotals(projects).issues.value,
-		openPullRequests: githubTotals(projects).prs.value
-	}
+	summary: workspaceSummary(projects)
 };
 
 function detail(project: ProjectSnapshot) {

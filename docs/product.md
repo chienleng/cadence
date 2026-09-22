@@ -50,6 +50,13 @@ Known GitHub counts, including zero, link to the corresponding GitHub list when 
 is available. Stale counts keep their warning; missing counts remain unknown. Without a repository
 URL, counts are shown as text.
 
+## Archived projects
+
+Projects registered with lifecycle `archived` stay in the workspace for reference but are hidden
+from the dashboard, the Needs-attention strip and every summary count except the total until you
+select the Archived lifecycle filter. The result count says how many are hidden. Refresh never
+queries GitHub or asks for a judged reading for them.
+
 ## Understand freshness and unknown data
 
 Local Git state is inspected when the page loads. Ahead/behind compares locally known upstream

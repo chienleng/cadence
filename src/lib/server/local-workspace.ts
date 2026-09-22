@@ -14,13 +14,13 @@ import MarkdownIt from 'markdown-it';
 import {
 	EMPTY_GITHUB,
 	EMPTY_JUDGMENT,
-	githubTotals,
 	judgmentConfirmed,
 	staleGithub
 } from '$lib/workspace/data-quality';
 import { weeklyCommitBuckets } from '$lib/workspace/cadence';
 import { concurrencyLimit, mapConcurrent } from './concurrency';
 import { selectRecord } from '$lib/workspace/navigation';
+import { workspaceSummary } from '$lib/workspace/summary';
 import { staleStatus, statusDate } from '$lib/workspace/freshness';
 import type {
 	ConventionCheck,
@@ -571,18 +571,7 @@ export async function scanWorkspace(): Promise<WorkspaceSnapshot> {
 		root,
 		generatedAt: new Date().toISOString(),
 		projects,
-		summary: {
-			total: projects.length,
-			active: projects.filter((project) => project.lifecycle === 'active').length,
-			dirty: projects.filter((project) => (project.git.dirtyFiles ?? 0) > 0).length,
-			missing: projects.filter((project) => !project.exists).length,
-			fullyStandardized: projects.filter((project) => project.conventionScore === 100).length,
-			behindUpstream: projects.filter((project) => (project.git.behind ?? 0) > 0).length,
-			staleStatus: projects.filter((project) => project.status.stale).length,
-			judgedStatus: projects.filter((project) => judgmentConfirmed(project.status.judgment)).length,
-			openIssues: githubTotals(projects).issues.value,
-			openPullRequests: githubTotals(projects).prs.value
-		}
+		summary: workspaceSummary(projects)
 	};
 }
 

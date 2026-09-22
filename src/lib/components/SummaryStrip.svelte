@@ -5,6 +5,7 @@
 		lifecycleHref,
 		metricHref,
 		parseFilters,
+		shownByDefault,
 		type MetricFilter
 	} from '$lib/workspace/filters';
 	import { githubDate, githubTotals, unknownWorkingTree } from '$lib/workspace/data-quality';
@@ -14,25 +15,24 @@
 	let { workspace }: { workspace: WorkspaceSnapshot } = $props();
 
 	const filters = $derived(parseFilters(page.url.searchParams));
+	const counted = $derived(workspace.projects.filter(shownByDefault));
 	const attentionCount = $derived(
-		workspace.projects.filter((project) => attentionReasons(project).length > 0).length
+		counted.filter((project) => attentionReasons(project).length > 0).length
 	);
 
-	const totals = $derived(githubTotals(workspace.projects));
-	const unknownGit = $derived(workspace.projects.filter(unknownWorkingTree).length);
-	const withStatus = $derived(
-		workspace.projects.filter((project) => project.status.present).length
-	);
+	const totals = $derived(githubTotals(counted));
+	const unknownGit = $derived(counted.filter(unknownWorkingTree).length);
+	const withStatus = $derived(counted.filter((project) => project.status.present).length);
 	const githubStates = $derived(
 		['failed', 'unavailable', 'absent', 'stale']
 			.map((state) => ({
 				state,
-				count: workspace.projects.filter((project) => project.github.state === state).length
+				count: counted.filter((project) => project.github.state === state).length
 			}))
 			.filter((item) => item.count > 0)
 	);
 	const githubDates = $derived(
-		workspace.projects
+		counted
 			.filter((project) => project.github.state === 'ok' || project.github.state === 'stale')
 			.map((project) => project.github.fetchedAt)
 			.filter((date): date is string => date !== null)
@@ -125,6 +125,13 @@
 		{#if workspace.summary.judgedStatus > 0}
 			<p>
 				Judged STATUS readings for {workspace.summary.judgedStatus} of {withStatus} projects with a status.
+			</p>
+		{/if}
+		{#if workspace.summary.archived > 0}
+			<p>
+				{workspace.summary.archived} archived
+				{workspace.summary.archived === 1 ? 'project is' : 'projects are'} excluded from these counts.
+				Filter by the Archived lifecycle to see {workspace.summary.archived === 1 ? 'it' : 'them'}.
 			</p>
 		{/if}
 	</div>

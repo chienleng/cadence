@@ -141,6 +141,15 @@ export function lifecycleHref(url: URL, lifecycle: string, current: string[]): s
 	});
 }
 
+/** Archived projects stay out of the dashboard unless a lifecycle facet names them. */
+export function shownByDefault(project: Pick<ProjectSnapshot, 'lifecycle'>): boolean {
+	return project.lifecycle !== 'archived';
+}
+
+export function matchesLifecycle(project: ProjectSnapshot, lifecycles: string[]): boolean {
+	return lifecycles.length === 0 ? shownByDefault(project) : lifecycles.includes(project.lifecycle);
+}
+
 export function matchesMetric(
 	project: ProjectSnapshot,
 	metric: MetricFilter | null,
@@ -172,7 +181,7 @@ export function applyFilters(
 		return (
 			matchesQuery &&
 			matchesMetric(project, state.metric, now) &&
-			(state.lifecycles.length === 0 || state.lifecycles.includes(project.lifecycle)) &&
+			matchesLifecycle(project, state.lifecycles) &&
 			(state.groups.length === 0 || state.groups.includes(project.group)) &&
 			(state.tags.length === 0 || (project.tags ?? []).some((tag) => state.tags.includes(tag)))
 		);
