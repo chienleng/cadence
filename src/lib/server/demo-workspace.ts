@@ -1,5 +1,5 @@
 import { selectRecord } from '$lib/workspace/navigation';
-import { githubTotals } from '$lib/workspace/data-quality';
+import { EMPTY_JUDGMENT, githubTotals, judgmentConfirmed } from '$lib/workspace/data-quality';
 import type {
 	GithubSnapshot,
 	GitSnapshot,
@@ -7,6 +7,7 @@ import type {
 	PreviewSelection,
 	ProjectSnapshot,
 	StatusFreshness,
+	StatusJudgment,
 	WorkspaceLoadResult,
 	WorkspaceSnapshot
 } from '$lib/workspace/types';
@@ -52,9 +53,26 @@ const github = (
 	latestRelease: options.latestRelease ?? null
 });
 
-const status = (daysAgo: number): StatusFreshness => {
+const judged = (
+	parked: number,
+	sections: NonNullable<StatusJudgment['sections']>
+): StatusJudgment => ({
+	state: 'confirmed',
+	judgedAt: new Date(Date.now() - 3_600_000).toISOString(),
+	model: 'jev-1.13.0',
+	sections,
+	parked
+});
+
+const status = (daysAgo: number, judgment: StatusJudgment = EMPTY_JUDGMENT): StatusFreshness => {
 	const updatedAt = new Date(Date.now() - daysAgo * 86_400_000).toISOString().slice(0, 10);
-	return { present: true, updatedAt, stale: daysAgo > 30 };
+	return {
+		present: true,
+		updatedAt,
+		stale: daysAgo > 30,
+		updatedAtSource: 'convention',
+		judgment
+	};
 };
 
 const convention = [
@@ -90,7 +108,21 @@ const projects: ProjectSnapshot[] = [
 				publishedAt: new Date(Date.now() - 6 * 86_400_000).toISOString()
 			}
 		}),
-		status: status(3)
+		status: status(
+			3,
+			judged(0.08, {
+				current: [
+					'Berth allocation API is live behind the feature flag; the harbour master pilot starts next week.',
+					'Contract tests cover every published endpoint after the v1.4.0 release.',
+					'The service has run without incident since the pilot cutover.'
+				],
+				next: [
+					'Remove the feature flag once the pilot signs off.',
+					'Document the berth allocation workflow for the operations team.'
+				],
+				risks: ['Tide tables come from an external feed with no uptime guarantee.']
+			})
+		)
 	},
 	{
 		id: 'signal-console',
@@ -111,7 +143,12 @@ const projects: ProjectSnapshot[] = [
 			commitsByWeek: [0, 0, 1, 0, 2, 1, 0, 3, 2, 4, 1, 2]
 		}),
 		github: github(2, 0, { isPrivate: true }),
-		status: status(5)
+		status: status(5, {
+			...EMPTY_JUDGMENT,
+			state: 'failed',
+			judgedAt: new Date(Date.now() - 3_600_000).toISOString(),
+			model: 'jev-latest'
+		})
 	},
 	{
 		id: 'tide-ui',
@@ -133,7 +170,17 @@ const projects: ProjectSnapshot[] = [
 			commitsByWeek: [3, 2, 4, 1, 2, 1, 0, 1, 0, 0, 1, 0]
 		}),
 		github: ABSENT_GITHUB,
-		status: status(60)
+		status: status(
+			60,
+			judged(0.86, {
+				current: [
+					'Version 2.3.0 shipped the empty-state component and closed the component request backlog.',
+					'The library is in maintenance: no feature work is planned until the design refresh lands.'
+				],
+				next: ['Adopt the new design tokens when the product suite refresh is approved.'],
+				risks: ['Consumers pin exact versions, so releases need coordinated upgrades.']
+			})
+		)
 	}
 ];
 
@@ -151,6 +198,7 @@ const workspace: WorkspaceSnapshot = {
 		fullyStandardized: projects.filter((project) => project.conventionScore === 100).length,
 		behindUpstream: projects.filter((project) => (project.git.behind ?? 0) > 0).length,
 		staleStatus: projects.filter((project) => project.status.stale).length,
+		judgedStatus: projects.filter((project) => judgmentConfirmed(project.status.judgment)).length,
 		openIssues: githubTotals(projects).issues.value,
 		openPullRequests: githubTotals(projects).prs.value
 	}

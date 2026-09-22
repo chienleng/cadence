@@ -1,4 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import { EMPTY_JUDGMENT } from './data-quality';
+import type { StatusFreshness } from './types';
+
+const MISSING_STATUS: StatusFreshness = {
+	present: false,
+	updatedAt: null,
+	stale: false,
+	updatedAtSource: null,
+	judgment: EMPTY_JUDGMENT
+};
 import {
 	activeFilters,
 	applyFilters,
@@ -44,7 +54,13 @@ function project(overrides: Partial<ProjectSnapshot> = {}): ProjectSnapshot {
 			openPullRequests: null,
 			latestRelease: null
 		},
-		status: { present: true, updatedAt: '2026-08-20', stale: false },
+		status: {
+			present: true,
+			updatedAt: '2026-08-20',
+			stale: false,
+			updatedAtSource: 'convention',
+			judgment: EMPTY_JUDGMENT
+		},
 		...overrides
 	};
 }
@@ -105,7 +121,13 @@ describe('applyFilters', () => {
 			name: 'Tide UI',
 			group: 'Libraries',
 			lifecycle: 'maintained',
-			status: { present: true, updatedAt: '2026-05-01', stale: true }
+			status: {
+				present: true,
+				updatedAt: '2026-05-01',
+				stale: true,
+				updatedAtSource: 'convention',
+				judgment: EMPTY_JUDGMENT
+			}
 		}),
 		project({
 			id: 'c',
@@ -171,12 +193,12 @@ describe('active filter controls', () => {
 	});
 	it('includes active projects missing status in both focus filters', () => {
 		const projects = [
-			project({ id: 'missing', status: { present: false, updatedAt: null, stale: false } }),
+			project({ id: 'missing', status: MISSING_STATUS }),
 			project({ id: 'present' }),
 			project({
 				id: 'paused',
 				lifecycle: 'paused',
-				status: { present: false, updatedAt: null, stale: false }
+				status: MISSING_STATUS
 			})
 		];
 		for (const metric of ['attention', 'missing-status']) {

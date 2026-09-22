@@ -1,4 +1,10 @@
-import type { GithubSnapshot, GitSnapshot, ProjectSnapshot } from './types';
+import type {
+	GithubSnapshot,
+	GitSnapshot,
+	ProjectSnapshot,
+	StatusFreshness,
+	StatusJudgment
+} from './types';
 
 export const EMPTY_GITHUB: GithubSnapshot = {
 	state: 'absent',
@@ -8,6 +14,43 @@ export const EMPTY_GITHUB: GithubSnapshot = {
 	openPullRequests: null,
 	latestRelease: null
 };
+
+export const EMPTY_JUDGMENT: StatusJudgment = {
+	state: 'absent',
+	judgedAt: null,
+	model: null,
+	sections: null,
+	parked: null
+};
+
+/** A parked probability at or above this reads as "looks parked". */
+export const PARKED_THRESHOLD = 0.7;
+
+export function judgmentConfirmed(judgment: StatusJudgment): boolean {
+	return judgment.state === 'confirmed' && judgment.sections !== null;
+}
+
+export function looksParked(status: StatusFreshness): boolean {
+	return (
+		status.judgment.state === 'confirmed' &&
+		status.judgment.parked !== null &&
+		status.judgment.parked >= PARKED_THRESHOLD
+	);
+}
+
+export function judgmentLabel(judgment: StatusJudgment): string {
+	return {
+		confirmed: 'Judged reading cached',
+		stale: 'Judged reading outdated',
+		failed: 'Judgment failed',
+		unavailable: 'Judgment unavailable',
+		absent: 'Not judged',
+		'not-applicable': 'Nothing to judge'
+	}[judgment.state];
+}
+
+export const JUDGMENT_DESCRIPTION =
+	'Section roles, item order and the parked signal come from a cached Jev (TypeSafe) reading of STATUS.md made by pnpm refresh. The file text is shown unchanged.';
 
 /** GitHub snapshots older than 24 hours (or without a trustworthy date) are stale. */
 export function staleGithub(fetchedAt: string | null, now = Date.now()): boolean {

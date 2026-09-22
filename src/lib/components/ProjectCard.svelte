@@ -4,6 +4,7 @@
 	import {
 		gitBranchLabel,
 		githubHasData,
+		looksParked,
 		unknownWorkingTree,
 		upstreamLabel
 	} from '$lib/workspace/data-quality';
@@ -73,6 +74,9 @@
 						<Badge variant="warning">missing status</Badge>
 					{:else if project.status.stale}
 						<Badge variant="warning">stale status</Badge>
+					{/if}
+					{#if looksParked(project.status)}
+						<Badge variant="warning">looks parked</Badge>
 					{/if}
 				</span>
 			</div>

@@ -20,6 +20,9 @@
 
 	const totals = $derived(githubTotals(workspace.projects));
 	const unknownGit = $derived(workspace.projects.filter(unknownWorkingTree).length);
+	const withStatus = $derived(
+		workspace.projects.filter((project) => project.status.present).length
+	);
 	const githubStates = $derived(
 		['failed', 'unavailable', 'absent', 'stale']
 			.map((state) => ({
@@ -119,5 +122,10 @@
 				Working tree unknown for {unknownGit}
 				{unknownGit === 1 ? 'repository' : 'repositories'}; excluded from the dirty total.
 			</p>{/if}
+		{#if workspace.summary.judgedStatus > 0}
+			<p>
+				Judged STATUS readings for {workspace.summary.judgedStatus} of {withStatus} projects with a status.
+			</p>
+		{/if}
 	</div>
 </section>

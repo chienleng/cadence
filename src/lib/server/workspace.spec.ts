@@ -1,9 +1,12 @@
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { access, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { EMPTY_JUDGMENT } from '$lib/workspace/data-quality';
+import { staleStatus } from '$lib/workspace/freshness';
 import {
 	getProjectDetail,
 	loadProjectDefinitions,
@@ -229,7 +232,13 @@ describe('local workspace provider', () => {
 			`# Harbour status\n\nUpdated: ${updatedAt}\n\nReady.`
 		);
 		const snapshot = await scanWorkspace();
-		expect(snapshot.projects[0]?.status).toEqual({ present: true, updatedAt, stale: false });
+		expect(snapshot.projects[0]?.status).toEqual({
+			present: true,
+			updatedAt,
+			stale: false,
+			updatedAtSource: 'convention',
+			judgment: EMPTY_JUDGMENT
+		});
 		expect(snapshot.summary.staleStatus).toBe(0);
 	});
 
@@ -260,6 +269,114 @@ async function cacheEntry(github: unknown, generatedAt: unknown = new Date().toI
 		JSON.stringify({ schemaVersion: 1, generatedAt, projects: [{ path: 'apps/harbour', github }] })
 	);
 }
+
+async function judgmentEntry(judgments: unknown) {
+	const cacheRoot = resolve(fixtureRoot, 'cache');
+	process.env.CADENCE_CACHE_ROOT = cacheRoot;
+	await write(
+		resolve(cacheRoot, 'projects.json'),
+		JSON.stringify({
+			schemaVersion: 1,
+			generatedAt: new Date().toISOString(),
+			projects: [{ path: 'apps/harbour', github: { state: 'skipped' }, judgments }]
+		})
+	);
+}
+
+describe('status judgments', () => {
+	const text =
+		'# Harbour status\n\nUpdated: 2026-09-20 (release day)\n\n## Current work\n\n* Shipped.\n* Half done.\n\n## Up next\n\n- Verify.\n';
+	const bullet = (id: string, text: string, score: number) => ({
+		id,
+		text,
+		score,
+		confidence: 0.9
+	});
+	const updated = {
+		schemaVersion: 1,
+		state: 'updated',
+		generatedAt: '2026-09-22T00:00:00.000Z',
+		model: 'jev-1.13.0',
+		sourceHash: createHash('sha256').update(text).digest('hex'),
+		status: {
+			sections: {
+				current: [bullet('B01', 'Shipped.', 0.2), bullet('B02', 'Half done.', 2.7)],
+				next: [bullet('B03', 'Verify.', 2.1)],
+				risks: []
+			},
+			headings: [],
+			updatedAt: { value: '2026-09-20', confidence: 1 },
+			parked: 0.12,
+			deferred: []
+		}
+	};
+
+	it('uses a confirmed judgment for sections, order and an unreadable Updated line', async () => {
+		await write(resolve(dataRoot, 'projects/apps/harbour/STATUS.md'), text);
+		await judgmentEntry(updated);
+		const snapshot = await scanWorkspace();
+		expect(snapshot.projects[0].status).toEqual({
+			present: true,
+			updatedAt: '2026-09-20',
+			stale: staleStatus('2026-09-20'),
+			updatedAtSource: 'judged',
+			judgment: {
+				state: 'confirmed',
+				judgedAt: '2026-09-22T00:00:00.000Z',
+				model: 'jev-1.13.0',
+				sections: { current: ['Half done.', 'Shipped.'], next: ['Verify.'], risks: [] },
+				parked: 0.12
+			}
+		});
+		expect(snapshot.summary.judgedStatus).toBe(1);
+	});
+
+	it('gives the project detail the same confirmed judgment as the dashboard', async () => {
+		await write(resolve(dataRoot, 'projects/apps/harbour/STATUS.md'), text);
+		await judgmentEntry(updated);
+		const detail = await getProjectDetail('apps-harbour');
+		expect(detail?.project.status.judgment.state).toBe('confirmed');
+		expect(detail?.project.status.judgment.sections?.next).toEqual(['Verify.']);
+		expect(detail?.project.status.updatedAtSource).toBe('judged');
+	});
+
+	it('keeps the Updated line as the date source when it is readable', async () => {
+		const readable = text.replace(' (release day)', '');
+		await write(resolve(dataRoot, 'projects/apps/harbour/STATUS.md'), readable);
+		await judgmentEntry({
+			...updated,
+			sourceHash: createHash('sha256').update(readable).digest('hex')
+		});
+		const snapshot = await scanWorkspace();
+		expect(snapshot.projects[0].status.updatedAtSource).toBe('convention');
+		expect(snapshot.projects[0].status.judgment.state).toBe('confirmed');
+	});
+
+	it('marks a judgment stale when the file changed, and mirrors other states', async () => {
+		await write(resolve(dataRoot, 'projects/apps/harbour/STATUS.md'), `${text}\n- New line.\n`);
+		await judgmentEntry(updated);
+		let snapshot = await scanWorkspace();
+		expect(snapshot.projects[0].status).toMatchObject({
+			updatedAt: null,
+			updatedAtSource: null,
+			judgment: { state: 'stale', sections: null, parked: null, model: 'jev-1.13.0' }
+		});
+		expect(snapshot.summary.judgedStatus).toBe(0);
+		for (const [state, expected] of [
+			['failed', 'failed'],
+			['skipped', 'absent'],
+			['not-applicable', 'not-applicable'],
+			['bogus', 'unavailable']
+		]) {
+			await judgmentEntry({ state, model: 'jev-latest' });
+			snapshot = await scanWorkspace();
+			expect(snapshot.projects[0].status.judgment.state).toBe(expected);
+		}
+		await judgmentEntry(undefined);
+		snapshot = await scanWorkspace();
+		expect(snapshot.projects[0].status.judgment).toEqual(EMPTY_JUDGMENT);
+	});
+});
 
 describe('data availability', () => {
 	it.each(['failed', 'unavailable', 'skipped'])(

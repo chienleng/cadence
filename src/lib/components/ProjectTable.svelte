@@ -6,6 +6,7 @@
 		upstreamLabel,
 		LOCAL_REFS_DESCRIPTION,
 		githubHasData,
+		looksParked,
 		unknownWorkingTree
 	} from '$lib/workspace/data-quality';
 	import { Badge, Table } from '@chienleng/stratum-ui/ui';
@@ -85,8 +86,15 @@
 					<span class="muted">—</span>
 				{:else if project.status.stale}
 					<Badge variant="warning">stale</Badge>
+				{:else if project.status.updatedAtSource === 'judged'}
+					<span class="date-cell" title="Date read by Jev; the Updated: line could not be parsed"
+						>{project.status.updatedAt} · judged</span
+					>
 				{:else}
 					<span class="date-cell">{project.status.updatedAt}</span>
+				{/if}
+				{#if looksParked(project.status)}
+					<Badge variant="warning">parked</Badge>
 				{/if}
 			</td>
 			{@render workCount(project, project.github.openIssues, 'issues')}

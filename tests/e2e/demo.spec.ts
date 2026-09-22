@@ -56,3 +56,24 @@ test('built demo loads selected document bodies and preserves independent record
 	await expect(page.locator('.record-layout article')).toContainText('Current status');
 	await expectPageFits(page);
 });
+
+test('built demo shows judged STATUS readings and the parked signal', async ({ page }) => {
+	await page.goto('/demo/projects/harbour-api');
+	const reading = page.getByRole('region', { name: 'Judged reading' });
+	await expect(reading).toBeVisible();
+	await expect(reading).toContainText('Berth allocation API is live');
+	await expect(reading).not.toContainText('Looks parked');
+	await expect(page.getByText('Judged reading cached', { exact: true })).toBeVisible();
+
+	await page.goto('/demo/projects/tide-ui');
+	await expect(page.getByRole('region', { name: 'Judged reading' })).toContainText('Looks parked');
+
+	await page.goto('/demo/projects/signal-console');
+	await expect(page.getByRole('region', { name: 'Judged reading' })).toHaveCount(0);
+	await expect(page.getByText('Judgment failed', { exact: true })).toBeVisible();
+
+	await page.goto('/demo');
+	await expect(page.locator('.attention-reason[data-key="parked"]')).toHaveCount(1);
+	await expect(page.locator('.data-coverage')).toContainText('Judged STATUS readings for 2 of 3');
+	await expectPageFits(page);
+});

@@ -9,7 +9,11 @@
 		gitBranchLabel,
 		githubHasData,
 		githubTimestamp,
+		judgmentConfirmed,
+		judgmentLabel,
+		looksParked,
 		upstreamLabel,
+		JUDGMENT_DESCRIPTION,
 		LOCAL_REFS_DESCRIPTION
 	} from '$lib/workspace/data-quality';
 	import {
@@ -47,6 +51,27 @@
 	);
 	const missingRecord = $derived(
 		requestedRecord !== null && !data.records.some((record) => record.path === requestedRecord)
+	);
+	const JUDGED_DATE_TITLE = 'Date read by Jev because the Updated: line could not be parsed';
+	const JUDGED_ITEM_LIMIT = 3;
+	const judgment = $derived(data.project.status.judgment);
+	const judgedDate = $derived(data.project.status.updatedAtSource === 'judged');
+	const judgedSections = $derived.by(() => {
+		if (!judgmentConfirmed(judgment) || !judgment.sections) return [];
+		return (
+			[
+				{ key: 'current', label: 'Current', items: judgment.sections.current },
+				{ key: 'next', label: 'Next', items: judgment.sections.next },
+				{ key: 'risks', label: 'Risks', items: judgment.sections.risks }
+			] as const
+		).filter((section) => section.items.length > 0);
+	});
+	const readingVariant = $derived(
+		judgment.state === 'confirmed' ||
+			judgment.state === 'not-applicable' ||
+			judgment.state === 'absent'
+			? 'neutral'
+			: 'warning'
 	);
 	const recordOptions = $derived(
 		data.records.map((record) => ({
@@ -177,10 +202,12 @@
 							<div class="record-meta">
 								<Badge>{recordLabel(selectedRecord.kind)}</Badge>
 								{#if selectedRecord.kind === 'status'}
-									<Badge variant={data.project.status.stale ? 'warning' : 'neutral'}>
-										{data.project.status.stale ? 'Stale' : 'Updated'}
-										{data.project.status.updatedAt ?? '· undated'}
-									</Badge>
+									<span title={judgedDate ? JUDGED_DATE_TITLE : undefined}>
+										<Badge variant={data.project.status.stale ? 'warning' : 'neutral'}>
+											{data.project.status.stale ? 'Stale' : 'Updated'}
+											{data.project.status.updatedAt ?? '· undated'}{judgedDate ? ' · judged' : ''}
+										</Badge>
+									</span>
 								{/if}
 								<Button href={recordHref(page.url, selectedRecord.path)} variant="outline" size="sm"
 									>Record link</Button
@@ -196,6 +223,31 @@
 									>
 								{/if}
 							</div>
+							{#if selectedRecord.kind === 'status' && judgedSections.length > 0}
+								<section class="judged-reading" aria-labelledby="judged-reading-heading">
+									<div class="judged-reading-header">
+										<h3 id="judged-reading-heading">Judged reading</h3>
+										{#if looksParked(data.project.status)}
+											<Badge variant="warning">Looks parked</Badge>
+										{/if}
+										<Badge variant="neutral">{judgment.model ?? 'Jev'}</Badge>
+									</div>
+									{#each judgedSections as section (section.key)}
+										<h4 class="meta-label">{section.label}</h4>
+										<ul class="judged-list">
+											{#each section.items.slice(0, JUDGED_ITEM_LIMIT) as item, index (index)}
+												<li>{item}</li>
+											{/each}
+										</ul>
+										{#if section.items.length > JUDGED_ITEM_LIMIT}
+											<p class="local-ref-note">
+												+{section.items.length - JUDGED_ITEM_LIMIT} more in the record
+											</p>
+										{/if}
+									{/each}
+									<p class="preview-caveat">{JUDGMENT_DESCRIPTION}</p>
+								</section>
+							{/if}
 							<!-- Raw HTML is disabled in the server-side Markdown renderer. -->
 							<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 							<div class="markdown-body">{@html selectedRecord.html}</div>
@@ -250,15 +302,32 @@
 								>No STATUS.md</Badge
 							>
 						{:else if data.project.status.stale}
-							<Badge variant="warning">
-								Stale{data.project.status.updatedAt
-									? ` · ${data.project.status.updatedAt}`
-									: ' · undated'}
-							</Badge>
+							<span title={judgedDate ? JUDGED_DATE_TITLE : undefined}>
+								<Badge variant="warning">
+									Stale{data.project.status.updatedAt
+										? ` · ${data.project.status.updatedAt}`
+										: ' · undated'}{judgedDate ? ' · judged' : ''}
+								</Badge>
+							</span>
 						{:else}
-							<Badge variant="success">Updated {data.project.status.updatedAt}</Badge>
+							<span title={judgedDate ? JUDGED_DATE_TITLE : undefined}>
+								<Badge variant="success">
+									Updated {data.project.status.updatedAt}{judgedDate ? ' · judged' : ''}
+								</Badge>
+							</span>
 						{/if}
 					</li>
+					{#if data.project.status.present}
+						<li>
+							<span>Status reading</span>
+							<span class="badge-group">
+								<Badge variant={readingVariant}>{judgmentLabel(judgment)}</Badge>
+								{#if looksParked(data.project.status)}
+									<Badge variant="warning">Looks parked</Badge>
+								{/if}
+							</span>
+						</li>
+					{/if}
 					<li>
 						<span>GitHub</span>
 						<GithubStatus github={data.project.github} />
@@ -309,6 +378,12 @@
 						GitHub counts are cached. Data older than 24 hours is marked stale.
 						{#if !backHref.startsWith('/demo')}Run <code>pnpm refresh</code> in Cadence, then reload to
 							try again.{/if}
+					</p>
+				{/if}
+				{#if judgment.state === 'absent' && !backHref.startsWith('/demo')}
+					<p class="preview-caveat">
+						Set <code>TYPESAFE_API_KEY</code> and run <code>pnpm refresh</code> in Cadence to add a judged
+						reading of STATUS.md.
 					</p>
 				{/if}
 			</CardContent>
@@ -457,3 +532,55 @@
 		</Card>
 	</div>
 </main>
+
+<style>
+	.judged-reading {
+		margin-bottom: var(--su-space-6);
+		padding-bottom: var(--su-space-4);
+		border-bottom: 1px solid var(--su-border-muted);
+	}
+
+	.judged-reading-header {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--su-space-3);
+		margin-bottom: var(--su-space-4);
+	}
+
+	.judged-reading h3 {
+		margin: 0;
+		font-family: var(--su-font-display);
+		font-size: var(--su-font-size-sm);
+	}
+
+	.judged-reading h4 {
+		margin: var(--su-space-4) 0 var(--su-space-2);
+	}
+
+	.judged-list {
+		margin: 0;
+		padding-left: var(--su-space-5);
+		font-size: var(--su-font-size-sm);
+		line-height: 1.5;
+	}
+
+	.judged-list li + li {
+		margin-top: var(--su-space-1);
+	}
+
+	.judged-reading .local-ref-note {
+		margin-top: var(--su-space-2);
+	}
+
+	.judged-reading .preview-caveat {
+		margin: var(--su-space-4) 0 0;
+	}
+
+	.badge-group {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+		gap: var(--su-space-2);
+	}
+</style>

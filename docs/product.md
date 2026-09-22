@@ -60,6 +60,16 @@ GitHub counts come from `pnpm refresh`. Data older than 24 hours, or with an unu
 is marked stale. A failed or missing response stays unknown rather than becoming zero. Summary
 counts include coverage so you can see when a total is partial.
 
+When `pnpm refresh` runs with `TYPESAFE_API_KEY`, each STATUS.md also gets a judged reading from
+Jev (TypeSafe): which headings play the Current, Next and Risks roles whatever they are called,
+each item's actionability, the last-updated date when the `Updated:` line cannot be parsed by
+convention, and whether the Current section reads as parked. The project page shows the judged
+reading above the unchanged Markdown, the status date says "judged" when the judgment supplied
+it, and "Looks parked" appears as a badge and a Needs-attention reason for projects that are not
+dormant or archived. A judgment counts only while the file text matches what was judged; after
+an edit it reads as outdated until the next refresh. See
+[TypeSafe judgments](commands.md#typesafe-judgments).
+
 Run `pnpm refresh` and reload to update GitHub counts. `pnpm refresh --local-only` replaces the
 cache without GitHub data, so it removes previously cached GitHub counts from the dashboard.
 See [refresh commands](commands.md#refresh-repository-state) and the

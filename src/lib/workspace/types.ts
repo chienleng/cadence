@@ -64,11 +64,28 @@ export interface GithubSnapshot {
 	latestRelease: GithubRelease | null;
 }
 
+/** Jev (TypeSafe) reading of STATUS.md from the refresh cache. Items are
+ *  verbatim lines from the file, ordered by judged actionability. */
+export interface StatusJudgment {
+	/** confirmed: computed from the current file text. stale: the file changed
+	 *  since. failed/absent/unavailable/not-applicable mirror GitHub states. */
+	state: 'confirmed' | 'stale' | 'failed' | 'absent' | 'unavailable' | 'not-applicable';
+	judgedAt: string | null;
+	model: string | null;
+	sections: { current: string[]; next: string[]; risks: string[] } | null;
+	/** Probability that the Current section describes finished or parked work. */
+	parked: number | null;
+}
+
 export interface StatusFreshness {
 	present: boolean;
 	updatedAt: string | null;
 	/** True when STATUS.md exists but is undated or older than 30 days. */
 	stale: boolean;
+	/** Where updatedAt came from: the Updated: line, or a confirmed judgment
+	 *  when that line could not be read by convention. */
+	updatedAtSource: 'convention' | 'judged' | null;
+	judgment: StatusJudgment;
 }
 
 export interface ProjectSnapshot extends ProjectDefinition {
@@ -97,6 +114,7 @@ export interface WorkspaceSnapshot {
 		fullyStandardized: number;
 		behindUpstream: number;
 		staleStatus: number;
+		judgedStatus: number;
 		openIssues: number | null;
 		openPullRequests: number | null;
 	};

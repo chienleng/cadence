@@ -1,7 +1,8 @@
+import { looksParked } from './data-quality';
 import type { ProjectSnapshot } from './types';
 
 export interface AttentionReason {
-	key: 'dirty' | 'ahead' | 'behind' | 'prs' | 'stale' | 'missing-status';
+	key: 'dirty' | 'ahead' | 'behind' | 'prs' | 'parked' | 'stale' | 'missing-status';
 	label: string;
 }
 
@@ -16,7 +17,8 @@ function staleLabel(updatedAt: string | null, now: Date): string {
 /**
  * Why a project needs the owner's attention, in triage order: uncommitted
  * work, then unpushed commits, then divergence from upstream, then open
- * pull requests, then a stale status record.
+ * pull requests, then a status whose judged reading looks parked (never for
+ * dormant or archived projects, where that is expected), then a stale record.
  */
 export function attentionReasons(project: ProjectSnapshot, now = new Date()): AttentionReason[] {
 	const reasons: AttentionReason[] = [];
@@ -36,6 +38,13 @@ export function attentionReasons(project: ProjectSnapshot, now = new Date()): At
 			label: `${pullRequests} ${project.github.state === 'stale' ? 'cached ' : ''}open PR${pullRequests === 1 ? '' : 's'}`
 		});
 	}
+	if (
+		project.lifecycle !== 'dormant' &&
+		project.lifecycle !== 'archived' &&
+		looksParked(project.status)
+	) {
+		reasons.push({ key: 'parked', label: 'Looks parked' });
+	}
 	if (project.lifecycle === 'active' && !project.status.present) {
 		reasons.push({ key: 'missing-status', label: 'Missing status' });
 	} else if (project.status.stale) {
@@ -49,6 +58,7 @@ const WEIGHTS: Record<AttentionReason['key'], number> = {
 	ahead: 8,
 	behind: 4,
 	prs: 2,
+	parked: 1,
 	stale: 1,
 	'missing-status': 1
 };

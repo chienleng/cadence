@@ -7,10 +7,17 @@ import {
 	readBoundedText,
 	readMarkdown
 } from '../../../scripts/lib/files.mjs';
+import { cachedStatusJudgment, rankBullets } from '../../../scripts/lib/status-judgments.mjs';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { promisify } from 'node:util';
 import MarkdownIt from 'markdown-it';
-import { EMPTY_GITHUB, githubTotals, staleGithub } from '$lib/workspace/data-quality';
+import {
+	EMPTY_GITHUB,
+	EMPTY_JUDGMENT,
+	githubTotals,
+	judgmentConfirmed,
+	staleGithub
+} from '$lib/workspace/data-quality';
 import { weeklyCommitBuckets } from '$lib/workspace/cadence';
 import { concurrencyLimit, mapConcurrent } from './concurrency';
 import { selectRecord } from '$lib/workspace/navigation';
@@ -28,6 +35,7 @@ import type {
 	ProjectSnapshot,
 	RecentCommit,
 	StatusFreshness,
+	StatusJudgment,
 	WorkspaceConfig,
 	WorkspaceLoadResult,
 	WorkspaceSnapshot
@@ -341,14 +349,65 @@ async function check(
 	return { key, label, present: await result };
 }
 
+/** Map a cached refresh entry to the app's judgment states. A judgment counts
+ *  only when it was computed from the current STATUS.md text. */
+function statusJudgment(entry: unknown, text: string): StatusJudgment {
+	if (!entry || typeof entry !== 'object') return EMPTY_JUDGMENT;
+	const raw = entry as Record<string, unknown>;
+	const judgedAt = typeof raw.generatedAt === 'string' ? raw.generatedAt : null;
+	const model = typeof raw.model === 'string' ? raw.model : null;
+	const base = { ...EMPTY_JUDGMENT, judgedAt, model };
+	if (raw.state === 'skipped') return EMPTY_JUDGMENT;
+	if (raw.state === 'failed') return { ...base, state: 'failed' };
+	if (raw.state === 'not-applicable') return { ...base, state: 'not-applicable' };
+	if (raw.state !== 'updated') return { ...base, state: 'unavailable' };
+	const judgment = cachedStatusJudgment(entry, text);
+	if (!judgment) return { ...base, state: 'stale' };
+	const texts = (bullets: Parameters<typeof rankBullets>[0]) =>
+		rankBullets(bullets).map((bullet) => bullet.text);
+	return {
+		...base,
+		state: 'confirmed',
+		sections: {
+			current: texts(judgment.sections.current),
+			next: texts(judgment.sections.next),
+			risks: texts(judgment.sections.risks)
+		},
+		parked: judgment.parked
+	};
+}
+
 /** Status records live in the data repository, so this works even when the
- *  project directory itself is missing locally. */
-async function statusFreshness(projectPath: string): Promise<StatusFreshness> {
+ *  project directory itself is missing locally. The Updated: convention wins;
+ *  a confirmed judgment supplies the date only when that line is unreadable. */
+async function statusFreshness(
+	projectPath: string,
+	judgmentEntry: unknown = null
+): Promise<StatusFreshness> {
 	const root = await containedDirectory(dataRoot(), projectRecordsDirectory(projectPath));
 	const text = root ? await readMarkdown(root, resolve(root, 'STATUS.md')) : null;
-	if (text === null) return { present: false, updatedAt: null, stale: false };
-	const updatedAt = statusDate(text);
-	return { present: true, updatedAt, stale: staleStatus(updatedAt) };
+	if (text === null)
+		return {
+			present: false,
+			updatedAt: null,
+			stale: false,
+			updatedAtSource: null,
+			judgment: EMPTY_JUDGMENT
+		};
+	const judgment = statusJudgment(judgmentEntry, text);
+	const conventional = statusDate(text);
+	const judged =
+		judgmentConfirmed(judgment) && !conventional
+			? (cachedStatusJudgment(judgmentEntry, text)?.updatedAt?.value ?? null)
+			: null;
+	const updatedAt = conventional ?? judged;
+	return {
+		present: true,
+		updatedAt,
+		stale: staleStatus(updatedAt),
+		updatedAtSource: conventional ? 'convention' : judged ? 'judged' : null,
+		judgment
+	};
 }
 
 function githubCachePath(): string {
@@ -374,13 +433,16 @@ function normalizeRelease(value: unknown): GithubRelease | null {
 async function readGithubCache(): Promise<{
 	byPath: Map<string, GithubSnapshot>;
 	fallback: GithubSnapshot;
+	/** Raw per-project judgment entries; validated against the file text later. */
+	judgments: Map<string, unknown>;
 }> {
 	const byPath = new Map<string, GithubSnapshot>();
+	const judgments = new Map<string, unknown>();
 	const path = githubCachePath();
-	if (!(await exists(path))) return { byPath, fallback: EMPTY_GITHUB };
+	if (!(await exists(path))) return { byPath, fallback: EMPTY_GITHUB, judgments };
 	const source = await readBoundedText(dirname(path), path, 8 * 1024 * 1024);
 	if (!source || source.truncated)
-		return { byPath, fallback: { ...EMPTY_GITHUB, state: 'unavailable' } };
+		return { byPath, fallback: { ...EMPTY_GITHUB, state: 'unavailable' }, judgments };
 	const raw = source.text;
 
 	try {
@@ -393,6 +455,7 @@ async function readGithubCache(): Promise<{
 				: null;
 		for (const entry of cache.projects) {
 			if (typeof entry?.path !== 'string') continue;
+			if (entry.judgments) judgments.set(entry.path, entry.judgments);
 			const github = entry.github;
 			const base = { ...EMPTY_GITHUB, fetchedAt };
 			if (github?.state !== 'updated') {
@@ -420,16 +483,21 @@ async function readGithubCache(): Promise<{
 				latestRelease: normalizeRelease(github.latestRelease)
 			});
 		}
-		return { byPath, fallback: EMPTY_GITHUB };
+		return { byPath, fallback: EMPTY_GITHUB, judgments };
 	} catch {
-		return { byPath: new Map(), fallback: { ...EMPTY_GITHUB, state: 'unavailable' } };
+		return {
+			byPath: new Map(),
+			fallback: { ...EMPTY_GITHUB, state: 'unavailable' },
+			judgments: new Map()
+		};
 	}
 }
 
 async function inspectProject(
 	root: string,
 	project: ProjectDefinition,
-	github: GithubSnapshot
+	github: GithubSnapshot,
+	judgmentEntry: unknown = null
 ): Promise<ProjectSnapshot> {
 	const declared = projectDirectory(root, project.path);
 	if (!(await containedPath(root, declared, { allowMissing: true }))) {
@@ -449,11 +517,11 @@ async function inspectProject(
 			documentCount: 0,
 			git: { ...EMPTY_GIT },
 			github,
-			status: await statusFreshness(project.path)
+			status: await statusFreshness(project.path, judgmentEntry)
 		};
 	}
 
-	const freshness = statusFreshness(project.path);
+	const freshness = statusFreshness(project.path, judgmentEntry);
 	const [packageManager, convention, documentCount, gitSnapshot, status] = await Promise.all([
 		detectPackageManager(directory),
 		conventionChecks(directory, project.path, freshness),
@@ -489,7 +557,12 @@ export async function scanWorkspace(): Promise<WorkspaceSnapshot> {
 		readGithubCache()
 	]);
 	const projects = await mapConcurrent(definitions, 4, (project) =>
-		inspectProject(root, project, githubByPath.byPath.get(project.path) ?? githubByPath.fallback)
+		inspectProject(
+			root,
+			project,
+			githubByPath.byPath.get(project.path) ?? githubByPath.fallback,
+			githubByPath.judgments.get(project.path) ?? null
+		)
 	);
 
 	return {
@@ -506,6 +579,7 @@ export async function scanWorkspace(): Promise<WorkspaceSnapshot> {
 			fullyStandardized: projects.filter((project) => project.conventionScore === 100).length,
 			behindUpstream: projects.filter((project) => (project.git.behind ?? 0) > 0).length,
 			staleStatus: projects.filter((project) => project.status.stale).length,
+			judgedStatus: projects.filter((project) => judgmentConfirmed(project.status.judgment)).length,
 			openIssues: githubTotals(projects).issues.value,
 			openPullRequests: githubTotals(projects).prs.value
 		}
@@ -659,7 +733,8 @@ export async function getProjectDetail(
 	const project = await inspectProject(
 		root,
 		definition,
-		github.byPath.get(definition.path) ?? github.fallback
+		github.byPath.get(definition.path) ?? github.fallback,
+		github.judgments.get(definition.path) ?? null
 	);
 	const directory = await containedDirectory(root, projectDirectory(root, project.path));
 	// Source links need only a branch and remote, not a full Git/status/history scan.

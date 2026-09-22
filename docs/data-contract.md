@@ -135,7 +135,9 @@ with actionability scores and confidences; `status.headings` records each headin
 and whether it deferred to the exact-name convention; `status.updatedAt` and `status.parked` are
 the date choice and parked probability. Consumers use an entry only when its hash matches the
 current file, so an edited status silently returns to the regex convention until the next
-refresh. See [TypeSafe judgments](commands.md#typesafe-judgments).
+refresh. The dashboard maps entries to `confirmed` (hash matches), `stale` (file changed),
+`failed`, `absent` (skipped or no cache), `unavailable` (unreadable) and `not-applicable`, and
+takes the judged date only when the `Updated:` convention finds none. See [TypeSafe judgments](commands.md#typesafe-judgments).
 
 ## File read boundaries
 
