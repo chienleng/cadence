@@ -114,10 +114,72 @@ describe('agent context discovery', () => {
 		expect(audit.summary['no-status']).toBe(1);
 	});
 
+	it('accepts judged guide readings for discovery when the literal markers are absent', async () => {
+		const guide =
+			'# Harbour agent guide\n\nBefore you plan anything, run the Cadence context command for this project.\n';
+		await write(resolve(workspaceRoot, 'apps/harbour/AGENTS.md'), guide);
+		await write(
+			resolve(workspaceRoot, 'AGENTS.md'),
+			'# Workspace guide\n\nNothing about context here.\n'
+		);
+		const entry = (text: string, instructs: number) => ({
+			schemaVersion: 1,
+			state: 'updated',
+			generatedAt: new Date().toISOString(),
+			model: 'jev-1.13.0',
+			sourceHash: createHash('sha256').update(text).digest('hex'),
+			instructs
+		});
+		const cache = (guideEntry: unknown) => ({
+			schemaVersion: 1,
+			generatedAt: new Date().toISOString(),
+			mode: 'local-and-github',
+			workspace: { guide: null, shims: {} },
+			projects: [
+				{
+					path: 'apps/harbour',
+					git: null,
+					github: { state: 'skipped' },
+					judgments: { status: { state: 'skipped' }, guide: guideEntry }
+				}
+			]
+		});
+
+		const without = JSON.parse(await context(['--audit', '--json']));
+		expect(without.projects[0].discovery).toBe('none');
+		expect(without.summary.undiscoverable).toBe(1);
+
+		await write(resolve(cacheRoot, 'projects.json'), JSON.stringify(cache(entry(guide, 0.94))));
+		const judged = JSON.parse(await context(['--audit', '--json']));
+		expect(judged.projects[0]).toMatchObject({
+			discovery: 'judged-pointer',
+			pointerPresent: false,
+			pointerJudged: true,
+			pointerJudgment: 0.94,
+			state: 'ready'
+		});
+		expect(await context(['--audit'])).toContain('project guide (judged)');
+
+		await write(resolve(cacheRoot, 'projects.json'), JSON.stringify(cache(entry(guide, 0.3))));
+		expect(JSON.parse(await context(['--audit', '--json'])).projects[0].discovery).toBe('none');
+
+		await write(
+			resolve(cacheRoot, 'projects.json'),
+			JSON.stringify(cache(entry(`${guide}edited\n`, 0.94)))
+		);
+		expect(JSON.parse(await context(['--audit', '--json'])).projects[0].discovery).toBe('none');
+	});
+
 	it('audits workspace vendor shims for guide-loading directives', async () => {
 		const absent = JSON.parse(await context(['--audit', '--json']));
 		expect(absent.vendorShims).toEqual([
-			{ file: 'CLAUDE.md', loadDirective: '@AGENTS.md', state: 'absent' }
+			{
+				file: 'CLAUDE.md',
+				loadDirective: '@AGENTS.md',
+				state: 'absent',
+				judgment: null,
+				judgedLoads: false
+			}
 		]);
 
 		await write(
@@ -209,7 +271,12 @@ describe('workspace overview', () => {
 			generatedAt: new Date().toISOString(),
 			mode: 'local-and-github',
 			projects: [
-				{ path: 'apps/harbour', git: null, github: { state: 'skipped' }, judgments: entry }
+				{
+					path: 'apps/harbour',
+					git: null,
+					github: { state: 'skipped' },
+					judgments: { status: entry }
+				}
 			]
 		});
 

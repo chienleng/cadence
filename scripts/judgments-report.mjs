@@ -53,7 +53,7 @@ for (const project of validation.projects) {
 		? await readMarkdown(recordsRoot, resolve(recordsRoot, 'STATUS.md'))
 		: null;
 	if (statusText === null) continue;
-	const entry = byPath.get(project.path)?.judgments;
+	const entry = byPath.get(project.path)?.judgments?.status;
 	const judgment = cachedStatusJudgment(entry, statusText);
 	if (!judgment) {
 		rows.push({

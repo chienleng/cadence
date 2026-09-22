@@ -455,7 +455,7 @@ async function readGithubCache(): Promise<{
 				: null;
 		for (const entry of cache.projects) {
 			if (typeof entry?.path !== 'string') continue;
-			if (entry.judgments) judgments.set(entry.path, entry.judgments);
+			if (entry.judgments?.status) judgments.set(entry.path, entry.judgments.status);
 			const github = entry.github;
 			const base = { ...EMPTY_GITHUB, fetchedAt };
 			if (github?.state !== 'updated') {

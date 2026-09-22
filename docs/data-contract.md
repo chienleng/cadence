@@ -129,7 +129,10 @@ verifies the live remote.
 ## Cached judgments
 
 When `pnpm refresh` runs with `TYPESAFE_API_KEY`, each project's cache entry carries a
-`judgments` object: `state` is `updated`, `failed`, `skipped` or `not-applicable`; `sourceHash`
+`judgments` object with a `status` entry for STATUS.md and a `guide` entry for the project's
+`AGENTS.md`, and the snapshot carries `workspace.guide` and `workspace.shims` for the workspace
+guide and its vendor shim. In a status entry, `state` is `updated`, `failed`, `skipped` or
+`not-applicable`; `sourceHash`
 is the SHA-256 of the judged `STATUS.md`; `status.sections` holds Current, Next and Risks items
 with actionability scores and confidences; `status.headings` records each heading's judged role
 and whether it deferred to the exact-name convention; `status.updatedAt` and `status.parked` are
@@ -138,7 +141,11 @@ maintenance mode. Consumers use an entry only when its hash matches the
 current file, so an edited status silently returns to the regex convention until the next
 refresh. The dashboard maps entries to `confirmed` (hash matches), `stale` (file changed),
 `failed`, `absent` (skipped or no cache), `unavailable` (unreadable) and `not-applicable`, and
-takes the judged date only when the `Updated:` convention finds none. See [TypeSafe judgments](commands.md#typesafe-judgments).
+takes the judged date only when the `Updated:` convention finds none. A guide entry holds
+`instructs`, the probability that the guide tells agents to run the context command (zero
+without a request when the guide never mentions Cadence), which `pnpm context --audit` uses at
+0.7 or above when the literal markers are absent. Entries whose `sourceHash` still matches are
+reused by the next refresh instead of being asked again. See [TypeSafe judgments](commands.md#typesafe-judgments).
 
 ## File read boundaries
 

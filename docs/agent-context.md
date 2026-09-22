@@ -87,6 +87,16 @@ The audit assigns each registered project one state, in this order of precedence
 | `stale`          | The status is undated, has an invalid date, or is older than 30 days.                  |
 | `ready`          | Source, discovery instruction and a current dated status are present.                  |
 
+Each project also reports how discovery was established: a generated project pointer, the
+recognised workspace instruction, or, when neither literal marker is present, a judged reading.
+With `TYPESAFE_API_KEY` set, `pnpm refresh` asks Jev (TypeSafe) whether each project's `AGENTS.md`,
+the workspace guide and the `CLAUDE.md` shim instruct agents to run the context command, using
+only the lines that mention Cadence; guides that never mention it are answered without a request.
+A judged reading counts for discovery at or above 0.7 and only while the guide text matches what
+was judged. The audit prints every judged probability and flags where it disagrees with the
+literal check, so a guide that instructs agents in its own words, or a marker inside a "do not"
+example, is visible either way. See [TypeSafe judgments](commands.md#typesafe-judgments).
+
 A `ready` result verifies the files and markers Cadence recognises. It does not prove that an agent
 loaded the guide or followed it. Check your tool's actual behaviour as part of adoption.
 See the [command reference](commands.md#load-project-context) for JSON output and workspace summaries.

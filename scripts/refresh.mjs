@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 
 import { execFile } from 'node:child_process';
-import { mkdir, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { validateDataRoot } from './validate.mjs';
 import { containedDirectory, containedPath, readMarkdown } from './lib/files.mjs';
-import { createTypeSafeClient, judgeStatus } from './lib/status-judgments.mjs';
+import { createTypeSafeClient, judgeStatus, statusHash } from './lib/status-judgments.mjs';
+import { judgeGuide } from './lib/guide-judgments.mjs';
 
 const execFileAsync = promisify(execFile);
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -60,17 +61,74 @@ function githubName(remote) {
 	}
 }
 
-async function judgeProjectStatus(dataRoot, project, client) {
-	if (!client || project.lifecycle === 'archived') return { state: 'skipped' };
-	const recordsRoot = await containedDirectory(
-		dataRoot,
-		resolve(dataRoot, 'projects', project.path)
-	);
-	const statusText = recordsRoot
-		? await readMarkdown(recordsRoot, resolve(recordsRoot, 'STATUS.md'))
+/** Reuse a previous entry when it was computed from the same text, so an
+ *  unchanged file costs no request. */
+function reusable(previous, text) {
+	return previous?.state === 'updated' && previous.sourceHash === statusHash(text)
+		? previous
 		: null;
-	if (statusText === null) return { state: 'not-applicable', reason: 'No STATUS.md.' };
-	return judgeStatus(statusText, client);
+}
+
+let reusedJudgments = 0;
+async function judgeText(text, previous, judge) {
+	if (text === null) return { state: 'not-applicable', reason: 'File not found.' };
+	const reused = reusable(previous, text);
+	if (reused) reusedJudgments += 1;
+	return reused ?? judge(text);
+}
+
+/** Status and guide judgments for one project: skipped without a client or
+ *  for archived projects, reused when the source text is unchanged. */
+async function judgeProject(validation, project, client, previous) {
+	if (!client || project.lifecycle === 'archived')
+		return { status: { state: 'skipped' }, guide: { state: 'skipped' } };
+	const recordsRoot = await containedDirectory(
+		validation.dataRoot,
+		resolve(validation.dataRoot, 'projects', project.path)
+	);
+	const sourceRoot = await containedDirectory(
+		validation.workspaceRoot,
+		resolve(validation.workspaceRoot, project.path)
+	);
+	const [statusText, guideText] = await Promise.all([
+		recordsRoot ? readMarkdown(recordsRoot, resolve(recordsRoot, 'STATUS.md')) : null,
+		sourceRoot ? readMarkdown(sourceRoot, resolve(sourceRoot, 'AGENTS.md')) : null
+	]);
+	const [status, guide] = await Promise.all([
+		judgeText(statusText, previous?.status, (text) => judgeStatus(text, client)),
+		judgeText(guideText, previous?.guide, (text) => judgeGuide(text, client))
+	]);
+	return { status, guide };
+}
+
+/** The workspace guide and its vendor shim, judged once per refresh. */
+async function judgeWorkspaceGuides(validation, client, previous) {
+	if (!client) return { guide: { state: 'skipped' }, shims: {} };
+	const root = validation.workspaceRoot;
+	const guideText = await readMarkdown(root, resolve(root, 'AGENTS.md'));
+	const shimText = await readMarkdown(root, resolve(root, 'CLAUDE.md'));
+	const [guide, shim] = await Promise.all([
+		judgeText(guideText, previous?.guide, (text) => judgeGuide(text, client)),
+		judgeText(shimText, previous?.shims?.['CLAUDE.md'], (text) =>
+			judgeGuide(text, client, { kind: 'shim' })
+		)
+	]);
+	return { guide, shims: { 'CLAUDE.md': shim } };
+}
+
+async function readPreviousCache(path) {
+	try {
+		const previous = JSON.parse(await readFile(path, 'utf8'));
+		if (previous?.schemaVersion !== 1) return null;
+		return {
+			byPath: new Map(
+				(previous.projects ?? []).map((project) => [project.path, project.judgments])
+			),
+			workspace: previous.workspace ?? null
+		};
+	} catch {
+		return null;
+	}
 }
 
 async function inspectProject(workspaceRoot, project, localOnly) {
@@ -142,16 +200,30 @@ const client =
 	!localOnly && apiKey
 		? createTypeSafeClient({ apiKey, model: process.env.TYPESAFE_MODEL || undefined })
 		: null;
+const cacheDirectory = resolve(
+	process.env.CADENCE_CACHE_ROOT ?? resolve(appRoot, '.workspace-cache')
+);
+const cachePath = resolve(cacheDirectory, 'projects.json');
+const previous = client ? await readPreviousCache(cachePath) : null;
 const projects = [];
 for (const project of validation.projects) {
 	const [inspected, judgments] = await Promise.all([
 		inspectProject(validation.workspaceRoot, project, localOnly),
-		judgeProjectStatus(validation.dataRoot, project, client)
+		judgeProject(validation, project, client, previous?.byPath.get(project.path))
 	]);
 	projects.push({ ...inspected, judgments });
 }
-const judged = projects.filter((project) => project.judgments.state === 'updated');
-const judgmentFailures = projects.filter((project) => project.judgments.state === 'failed');
+const workspace = await judgeWorkspaceGuides(validation, client, previous?.workspace);
+const entries = [
+	...projects.flatMap((project) => [project.judgments.status, project.judgments.guide]),
+	workspace.guide,
+	...Object.values(workspace.shims)
+];
+const judged = entries.filter((entry) => entry.state === 'updated');
+const judgmentFailures = projects.filter(
+	(project) =>
+		project.judgments.status.state === 'failed' || project.judgments.guide.state === 'failed'
+);
 const snapshot = {
 	schemaVersion: 1,
 	generatedAt: new Date().toISOString(),
@@ -162,16 +234,13 @@ const snapshot = {
 		repositories: projects.filter((project) => project.git).length,
 		dirty: projects.filter((project) => project.git?.dirtyFiles > 0).length,
 		githubFailures: projects.filter((project) => project.github.state === 'failed').length,
-		judged: judged.length,
+		judged: projects.filter((project) => project.judgments.status.state === 'updated').length,
 		judgmentFailures: judgmentFailures.length
 	},
+	workspace,
 	projects
 };
 
-const cacheDirectory = resolve(
-	process.env.CADENCE_CACHE_ROOT ?? resolve(appRoot, '.workspace-cache')
-);
-const cachePath = resolve(cacheDirectory, 'projects.json');
 await mkdir(cacheDirectory, { recursive: true });
 const temporaryPath = `${cachePath}.${process.pid}.tmp`;
 await writeFile(temporaryPath, `${JSON.stringify(snapshot, null, 2)}\n`);
@@ -181,16 +250,17 @@ console.log(
 );
 if (client) {
 	const tokens = judged.reduce(
-		(sum, project) =>
-			sum +
-			(project.judgments.usage?.inputTokens ?? 0) +
-			(project.judgments.usage?.outputTokens ?? 0),
+		(sum, entry) => sum + (entry.usage?.inputTokens ?? 0) + (entry.usage?.outputTokens ?? 0),
 		0
 	);
-	const latency = judged.reduce((sum, project) => sum + (project.judgments.latencyMs ?? 0), 0);
+	const latency = judged.reduce((sum, entry) => sum + (entry.latencyMs ?? 0), 0);
+	const statuses = projects.filter((project) => project.judgments.status.state === 'updated');
+	const guides = projects.filter((project) => project.judgments.guide.state === 'updated');
 	console.log(
-		`Judged ${judged.length} statuses with ${client.model} (${tokens} tokens, ${latency} ms total)${judgmentFailures.length ? `; ${judgmentFailures.length} failed` : ''}.`
+		`Judged ${statuses.length} statuses and ${guides.length} project guides plus the workspace guide with ${client.model} (${reusedJudgments} reused from the previous cache; ${tokens} tokens, ${latency} ms across all cached judgments)${judgmentFailures.length ? `; ${judgmentFailures.length} failed` : ''}.`
 	);
 	for (const project of judgmentFailures)
-		console.error(`- ${project.path}: ${project.judgments.error}`);
+		console.error(
+			`- ${project.path}: ${project.judgments.status.error ?? project.judgments.guide.error}`
+		);
 } else if (!localOnly) console.log('TypeSafe judgments skipped: set TYPESAFE_API_KEY to enable.');

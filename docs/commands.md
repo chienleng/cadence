@@ -96,6 +96,12 @@ active projects below 0.1). Headings judged below 0.6 confidence, and every stat
 to the exact-name convention. `--local-only`, or an unset key, skips judgments and leaves the
 overview exactly as before. Set `TYPESAFE_MODEL` to pin a model; the default is `jev-latest`.
 
+The same refresh judges agent guides for `pnpm context --audit`: whether each project's
+`AGENTS.md`, the workspace `AGENTS.md` and the `CLAUDE.md` shim instruct agents to run the
+context command, from the lines that mention Cadence. Unchanged files reuse their previous
+judgment, so a refresh after small edits costs only the changed files. See
+[agent context](agent-context.md#check-the-setup).
+
 `pnpm judgments:report` (add `--json` to post-process) compares the cached judgments with the
 exact-name convention status by status: heading roles, the chosen date, the parked probability,
 and how the top three Current items were reordered, with latency and token counts. Use it to

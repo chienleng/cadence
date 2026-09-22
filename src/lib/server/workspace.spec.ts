@@ -278,7 +278,9 @@ async function judgmentEntry(judgments: unknown) {
 		JSON.stringify({
 			schemaVersion: 1,
 			generatedAt: new Date().toISOString(),
-			projects: [{ path: 'apps/harbour', github: { state: 'skipped' }, judgments }]
+			projects: [
+				{ path: 'apps/harbour', github: { state: 'skipped' }, judgments: { status: judgments } }
+			]
 		})
 	);
 }

@@ -9,6 +9,7 @@ import {
 	readMarkdown
 } from './lib/files.mjs';
 import { cachedStatusJudgment, rankBullets } from './lib/status-judgments.mjs';
+import { cachedGuideJudgment } from './lib/guide-judgments.mjs';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateDataRoot } from './validate.mjs';
@@ -20,6 +21,8 @@ const defaultRecentDays = 14;
 // Vendor files loaded instead of AGENTS.md must load the guide, not point at it.
 /** A Noul this high means the status declares the project parked or in maintenance mode. */
 const parkedThreshold = 0.7;
+/** A Noul this high means a guide is judged to instruct agents to run the context command. */
+const instructsThreshold = 0.7;
 const vendorShimFiles = [{ file: 'CLAUDE.md', loadDirective: '@AGENTS.md' }];
 
 function markdownTitle(source, fallback) {
@@ -81,6 +84,7 @@ async function readRefreshCache(now = new Date()) {
 		stale: true,
 		mode: null,
 		summary: null,
+		workspace: null,
 		byPath: new Map()
 	};
 	const contents = await readBoundedText(cacheRoot, path, 8 * 1024 * 1024);
@@ -104,6 +108,7 @@ async function readRefreshCache(now = new Date()) {
 		stale: ageDays === null || ageDays >= cacheStaleAfterDays,
 		mode: snapshot.mode ?? null,
 		summary: snapshot.summary ?? null,
+		workspace: snapshot.workspace ?? null,
 		byPath: new Map((snapshot.projects ?? []).map((project) => [project.path, project]))
 	};
 }
@@ -136,7 +141,12 @@ async function listRecords(projectRecordsRoot, dataRoot) {
 	return records.sort((a, b) => a.kind.localeCompare(b.kind) || a.path.localeCompare(b.path));
 }
 
-async function inspectProject(validation, project, now = new Date()) {
+/** @param {number | null} probability */
+function judgedInstructs(probability) {
+	return probability !== null && probability >= instructsThreshold;
+}
+
+async function inspectProject(validation, project, now = new Date(), cache = null) {
 	const projectRoot = resolve(validation.workspaceRoot, project.path);
 	const recordsRoot = resolve(validation.dataRoot, 'projects', project.path);
 	const sourceRoot = await containedDirectory(validation.workspaceRoot, projectRoot);
@@ -163,7 +173,24 @@ async function inspectProject(validation, project, now = new Date()) {
 		workspaceGuideText?.includes('## Cadence context') &&
 		workspaceGuideText.includes('context --cwd')
 	);
-	const discoverable = workspaceGuidePresent || pointerPresent;
+	// Cached Jev readings of the guides, valid only for the exact current text.
+	const pointerJudgment = cachedGuideJudgment(
+		cache?.byPath.get(project.path)?.judgments?.guide,
+		agentGuideText
+	);
+	const workspaceGuideJudgment = cachedGuideJudgment(cache?.workspace?.guide, workspaceGuideText);
+	const pointerJudged = judgedInstructs(pointerJudgment);
+	const workspaceGuideJudged = judgedInstructs(workspaceGuideJudgment);
+	const discovery = pointerPresent
+		? 'pointer'
+		: workspaceGuidePresent
+			? 'workspace-guide'
+			: pointerJudged
+				? 'judged-pointer'
+				: workspaceGuideJudged
+					? 'judged-workspace-guide'
+					: 'none';
+	const discoverable = discovery !== 'none';
 	const statusPresent = statusText !== null;
 	const statusStale = statusPresent && staleStatus(updatedAt, now);
 	const state = !sourceExists
@@ -184,6 +211,11 @@ async function inspectProject(validation, project, now = new Date()) {
 		workspaceGuidePresent,
 		workspaceGuidePath,
 		pointerPresent,
+		pointerJudgment,
+		pointerJudged,
+		workspaceGuideJudgment,
+		workspaceGuideJudged,
+		discovery,
 		projectAgentGuide,
 		contextCommand,
 		discoverable,
@@ -224,30 +256,34 @@ export async function resolveProjectContext({ cwd = process.cwd(), dataRoot, now
 	return inspectProject(validation, project, now);
 }
 
-async function inspectVendorShims(workspaceRoot) {
+async function inspectVendorShims(workspaceRoot, cache = null) {
 	const shims = [];
 	for (const { file, loadDirective } of vendorShimFiles) {
 		const text = await readMarkdown(workspaceRoot, resolve(workspaceRoot, file));
+		const judgment = cachedGuideJudgment(cache?.workspace?.shims?.[file], text);
 		shims.push({
 			file,
 			loadDirective,
-			state: text === null ? 'absent' : text.includes(loadDirective) ? 'ok' : 'pointer-only'
+			state: text === null ? 'absent' : text.includes(loadDirective) ? 'ok' : 'pointer-only',
+			judgment,
+			judgedLoads: judgedInstructs(judgment)
 		});
 	}
 	return shims;
 }
 
-export async function auditProjectContexts({ dataRoot, now } = {}) {
+export async function auditProjectContexts({ dataRoot, now = new Date() } = {}) {
 	const validation = await validateDataRoot(dataRoot);
 	if (!validation.valid) throw new Error(validation.issues.join('\n'));
+	const cache = await readRefreshCache(now);
 	const projects = [];
 	for (const project of validation.projects)
-		projects.push(await inspectProject(validation, project, now));
+		projects.push(await inspectProject(validation, project, now, cache));
 	const states = ['ready', 'no-status', 'stale', 'undiscoverable', 'missing-source'];
 	return {
 		dataRoot: validation.dataRoot,
 		workspaceRoot: validation.workspaceRoot,
-		vendorShims: await inspectVendorShims(validation.workspaceRoot),
+		vendorShims: await inspectVendorShims(validation.workspaceRoot, cache),
 		projects,
 		summary: Object.fromEntries(
 			states.map((state) => [state, projects.filter((item) => item.state === state).length])
@@ -272,7 +308,7 @@ export async function workspaceOverview({
 		.filter((item) => item.statusPresent)
 		.map((item) => {
 			const judgment = cachedStatusJudgment(
-				cache.byPath.get(item.project.path)?.judgments,
+				cache.byPath.get(item.project.path)?.judgments?.status,
 				item.statusText
 			);
 			const updatedAt = item.statusUpdatedAt ?? judgment?.updatedAt?.value ?? null;
@@ -426,15 +462,46 @@ function printContext(context) {
 	);
 }
 
+const discoveryLabels = {
+	pointer: 'project pointer',
+	'workspace-guide': 'workspace guide',
+	'judged-pointer': 'project guide (judged)',
+	'judged-workspace-guide': 'workspace guide (judged)',
+	none: 'not configured'
+};
+
 function printAudit(audit) {
 	console.log('# Cadence agent-context audit\n');
 	for (const item of audit.projects) {
-		console.log(`${item.state.padEnd(14)} ${item.project.path}`);
+		console.log(
+			`${item.state.padEnd(14)} ${item.project.path.padEnd(36)} ${discoveryLabels[item.discovery]}`
+		);
+	}
+	const judged = audit.projects.filter(
+		(item) => item.pointerJudgment !== null || item.workspaceGuideJudgment !== null
+	);
+	if (judged.length) {
+		console.log('\nJudged guide readings (Jev, cached by pnpm refresh):');
+		const sample = judged[0];
+		if (sample.workspaceGuideJudgment !== null)
+			console.log(
+				`- Workspace guide instructs agents to run the context command: ${sample.workspaceGuideJudgment.toFixed(2)}${sample.workspaceGuidePresent === sample.workspaceGuideJudged ? '' : ' — disagrees with the literal check'}`
+			);
+		// Guides that never mention Cadence are judged 0 without a request; only
+		// real readings and disagreements are worth a line.
+		for (const item of judged.filter(
+			(item) =>
+				item.pointerJudgment !== null &&
+				(item.pointerJudgment > 0 || item.pointerPresent !== item.pointerJudged)
+		))
+			console.log(
+				`- ${item.project.path}: project guide ${item.pointerJudgment.toFixed(2)}${item.pointerPresent === item.pointerJudged ? '' : ' — disagrees with the literal pointer check'}`
+			);
 	}
 	console.log('\nWorkspace vendor shims:');
 	for (const shim of audit.vendorShims)
 		console.log(
-			`- ${shim.file}: ${shim.state}${shim.state === 'pointer-only' ? ` — a shim must load the guide, not point at it; make its content a ${shim.loadDirective} import` : ''}`
+			`- ${shim.file}: ${shim.state}${shim.judgment !== null ? ` (judged loads the guide: ${shim.judgment.toFixed(2)})` : ''}${shim.state === 'pointer-only' ? ` — a shim must load the guide, not point at it; make its content a ${shim.loadDirective} import` : ''}`
 		);
 	console.log('\nSummary:');
 	for (const [state, count] of Object.entries(audit.summary)) console.log(`- ${state}: ${count}`);
