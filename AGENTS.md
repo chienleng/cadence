@@ -15,6 +15,10 @@ changes.
 - The hosted demo must use fictional fixtures and must not bundle filesystem, Git, or child-process
   code.
 - GitHub Issues remain the source of truth for actionable work.
+- Cadence is for the owner's own use. Issues in this repository may describe the app, but must
+  never cite the workspace records (`cadence-workspace`, `STATUS.md`, plans, notes) or link to
+  them. The workspace guide's "Keep Cadence out of GitHub issues" rule covers every other
+  registered project.
 
 ## Stack and verification
 
