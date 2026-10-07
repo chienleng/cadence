@@ -49,6 +49,7 @@ function project(overrides: {
 			commitsByWeek: []
 		},
 		github: {
+			issueList: null,
 			state: overrides.openPullRequests == null ? 'absent' : 'ok',
 			fetchedAt: null,
 			isPrivate: null,

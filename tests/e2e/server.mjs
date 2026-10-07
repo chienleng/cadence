@@ -87,7 +87,11 @@ try {
 			projects: [
 				{
 					path: 'harbour',
-					github: { state: 'updated', issues: { totalCount: 0 }, pullRequests: { totalCount: 2 } }
+					github: {
+						state: 'updated',
+						issues: { totalCount: 0, nodes: [] },
+						pullRequests: { totalCount: 2 }
+					}
 				},
 				{ path: 'failed', github: { state: 'failed', issues: { totalCount: 0 } } }
 			]

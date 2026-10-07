@@ -1,6 +1,25 @@
 import { test, expect } from '@playwright/test';
 import { expectPageFits, selectRecord } from './helpers';
 
+test('project issues show fictional links and unavailable states', async ({ page }) => {
+	await page.goto('/demo/projects/harbour-api');
+	const issues = page.getByRole('region', { name: 'Open issues' });
+	await expect(issues.getByRole('listitem')).toHaveCount(4);
+	await expect(issues.getByRole('link').first()).toHaveAttribute(
+		'href',
+		'https://example.com/harbour-api/issues/24'
+	);
+	await expect(issues.getByRole('link').first()).toContainText(
+		'Document berth allocation workflow'
+	);
+	await expectPageFits(page);
+	await page.goto('/demo/projects/tide-ui');
+	await expect(issues).toContainText('Issue list unavailable');
+	await expect(issues).not.toContainText('No open issues');
+	await page.goto('/demo/projects/signal-console');
+	await expect(issues).toContainText('Could not resolve to a Repository');
+});
+
 test('root route is the homepage and links to the fictional dashboard', async ({ page }) => {
 	await page.goto('/');
 	await expect(page.getByRole('heading', { name: /See every project clearly/ })).toBeVisible();

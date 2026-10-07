@@ -11,6 +11,7 @@ export const EMPTY_GITHUB: GithubSnapshot = {
 	fetchedAt: null,
 	isPrivate: null,
 	openIssues: null,
+	issueList: null,
 	openPullRequests: null,
 	latestRelease: null
 };

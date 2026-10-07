@@ -381,6 +381,44 @@ describe('status judgments', () => {
 });
 
 describe('data availability', () => {
+	it('loads cached issues on project details and retains stale lists', async () => {
+		const issue = {
+			number: 19,
+			title: 'Fetch issues',
+			url: 'https://github.com/example/harbour/issues/19',
+			updatedAt: '2026-09-20T00:00:00Z'
+		};
+		await cacheEntry(
+			{ state: 'updated', issues: { totalCount: 1, nodes: [issue] } },
+			'2020-01-01T00:00:00Z'
+		);
+		expect((await getProjectDetail('apps-harbour'))?.project.github).toMatchObject({
+			state: 'stale',
+			issueList: [issue]
+		});
+	});
+	it('distinguishes old or invalid issue lists from confirmed empty lists', async () => {
+		for (const nodes of [
+			undefined,
+			null,
+			{},
+			[
+				{
+					number: 1,
+					title: 'Unsafe',
+					url: 'javascript:alert(1)',
+					updatedAt: '2026-09-20T00:00:00Z'
+				}
+			]
+		]) {
+			await cacheEntry({ state: 'updated', issues: { totalCount: 0, nodes } });
+			expect((await getProjectDetail('apps-harbour'))?.project.github.issueList).toBeNull();
+		}
+		await cacheEntry({ state: 'updated', issues: { totalCount: 0, nodes: [] } });
+		expect((await getProjectDetail('apps-harbour'))?.project.github.issueList).toEqual([]);
+		await cacheEntry({ state: 'failed', issues: { totalCount: 0, nodes: [] } });
+		expect((await getProjectDetail('apps-harbour'))?.project.github.issueList).toBeNull();
+	});
 	it.each(['failed', 'unavailable', 'skipped'])(
 		'preserves %s cache entries without zero counts',
 		async (state) => {

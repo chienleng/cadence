@@ -417,6 +417,35 @@ function githubCachePath(): string {
 	);
 }
 
+function normalizeIssues(value: unknown): GithubSnapshot['issueList'] {
+	if (!Array.isArray(value)) return null;
+	const issues: NonNullable<GithubSnapshot['issueList']> = [];
+	const seen = new Set<number>();
+	for (const issue of value) {
+		if (
+			!issue ||
+			!Number.isSafeInteger(issue.number) ||
+			issue.number <= 0 ||
+			typeof issue.title !== 'string' ||
+			!issue.title.trim() ||
+			typeof issue.url !== 'string' ||
+			!/^https:\/\/github\.com\/[^/]+\/[^/]+\/issues\/[1-9]\d*$/.test(issue.url) ||
+			typeof issue.updatedAt !== 'string' ||
+			!Number.isFinite(Date.parse(issue.updatedAt))
+		)
+			return null;
+		if (seen.has(issue.number)) continue;
+		seen.add(issue.number);
+		issues.push({
+			number: issue.number,
+			title: issue.title,
+			url: issue.url,
+			updatedAt: issue.updatedAt
+		});
+	}
+	return issues.sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+}
+
 function normalizeRelease(value: unknown): GithubRelease | null {
 	if (!value || typeof value !== 'object') return null;
 	const release = value as Record<string, unknown>;
@@ -483,6 +512,7 @@ async function readGithubCache(): Promise<{
 				fetchedAt,
 				isPrivate: typeof github.isPrivate === 'boolean' ? github.isPrivate : null,
 				openIssues: count(github.issues?.totalCount),
+				issueList: normalizeIssues(github.issues?.nodes),
 				openPullRequests: count(github.pullRequests?.totalCount),
 				latestRelease: normalizeRelease(github.latestRelease)
 			});

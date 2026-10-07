@@ -110,6 +110,13 @@ at the real workspace root with an intentional copy or symlink. See [Agent conte
 
 ## Cached GitHub data
 
+Refresh fetches all pages of open issues, excluding pull requests. The cache stores each issue's
+number, title, URL and last update time in `github.issues.nodes`. Project details show these
+as links, most recently updated first. Older count-only caches show an unavailable list until
+the next refresh; only a successfully fetched empty list means no open issues. Archived
+projects skip GitHub queries. GitHub commands retain their 30-second and 2 MiB output limits;
+an oversized, timed-out or incomplete response is a failed refresh, never an empty list.
+
 GitHub facts come from `pnpm refresh`, separately from local Git inspection. Successful data older
 than 24 hours, or with a missing, invalid or future timestamp, is stale. Known stale counts remain
 visible; failed, unavailable or missing counts remain unknown. Zero means a successful cached
@@ -123,7 +130,7 @@ Totals show how many applicable projects supplied each count and are labelled pa
 are missing. Projects known not to use a GitHub remote are excluded from that count's coverage.
 
 A refresh replaces the cache. `--local-only` skips GitHub and removes previously cached GitHub
-counts; a failed lookup does not retain the previous successful count. Reload the dashboard after
+counts and issue lists; a failed lookup does not retain previous successful data. Reload the dashboard after
 refreshing. See [Commands](commands.md#refresh-repository-state).
 
 A failed working-tree inspection is unknown, never clean. Missing checkouts and non-repositories

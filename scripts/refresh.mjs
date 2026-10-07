@@ -10,6 +10,7 @@ import { containedDirectory, containedPath, readMarkdown } from './lib/files.mjs
 import { createTypeSafeClient, judgeStatus, statusHash } from './lib/status-judgments.mjs';
 import { judgeGuide } from './lib/guide-judgments.mjs';
 import { count, errorText } from './lib/commands.mjs';
+import { fetchGithub } from './lib/github.mjs';
 
 const execFileAsync = promisify(execFile);
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -149,21 +150,7 @@ async function inspectProject(workspaceRoot, project, localOnly) {
 	const nameWithOwner = githubName(remoteUrl);
 	// Archived projects keep their remotes as history only; never query them.
 	const queryGithub = !localOnly && nameWithOwner && project.lifecycle !== 'archived';
-	let github = { state: queryGithub ? 'unavailable' : 'skipped' };
-	if (queryGithub) {
-		const response = await run(
-			'gh',
-			['repo', 'view', nameWithOwner, '--json', 'isPrivate,issues,pullRequests,latestRelease'],
-			30_000
-		);
-		if (response.ok) {
-			try {
-				github = { state: 'updated', ...JSON.parse(response.value) };
-			} catch {
-				github = { state: 'failed', error: 'GitHub returned unreadable JSON.' };
-			}
-		} else github = { state: 'failed', error: response.error };
-	}
+	const github = queryGithub ? await fetchGithub(nameWithOwner, run) : { state: 'skipped' };
 	// "<behind> <ahead>" from --left-right; anything unparseable is unknown, not zero.
 	const [behind = null, ahead = null] = divergence.ok
 		? divergence.value.trim().split(/\s+/).map(count)

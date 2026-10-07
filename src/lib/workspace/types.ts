@@ -54,6 +54,13 @@ export interface GithubRelease {
 	publishedAt: string;
 }
 
+export interface GithubIssue {
+	number: number;
+	title: string;
+	url: string;
+	updatedAt: string;
+}
+
 /** GitHub data comes from the refresh cache; missing counts are never confirmed zeros. */
 export interface GithubSnapshot {
 	state: 'ok' | 'stale' | 'failed' | 'unavailable' | 'absent' | 'not-applicable';
@@ -62,6 +69,8 @@ export interface GithubSnapshot {
 	fetchedAt: string | null;
 	isPrivate: boolean | null;
 	openIssues: number | null;
+	/** null means the list was not fetched or could not be read, including older caches. */
+	issueList: GithubIssue[] | null;
 	openPullRequests: number | null;
 	latestRelease: GithubRelease | null;
 }

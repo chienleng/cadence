@@ -37,6 +37,7 @@ const ABSENT_GITHUB: GithubSnapshot = {
 	fetchedAt: null,
 	isPrivate: null,
 	openIssues: null,
+	issueList: null,
 	openPullRequests: null,
 	latestRelease: null
 };
@@ -50,6 +51,7 @@ const github = (
 	fetchedAt: new Date(Date.now() - 3_600_000).toISOString(),
 	isPrivate: options.isPrivate ?? false,
 	openIssues,
+	issueList: options.issueList ?? null,
 	openPullRequests,
 	latestRelease: options.latestRelease ?? null
 });
@@ -102,6 +104,17 @@ const projects: ProjectSnapshot[] = [
 			commitsByWeek: [2, 3, 1, 4, 2, 5, 3, 4, 6, 3, 5, 7]
 		}),
 		github: github(4, 1, {
+			issueList: [
+				'Document berth allocation workflow',
+				'Add tide feed retry handling',
+				'Improve vessel arrival validation',
+				'Review pilot feedback'
+			].map((title, index) => ({
+				number: 24 - index,
+				title,
+				url: `https://example.com/harbour-api/issues/${24 - index}`,
+				updatedAt: new Date(Date.now() - (index + 1) * 86_400_000).toISOString()
+			})),
 			latestRelease: {
 				name: 'Harbour API v1.4.0',
 				tagName: 'v1.4.0',

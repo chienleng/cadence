@@ -47,6 +47,7 @@ function project(overrides: Partial<ProjectSnapshot> = {}): ProjectSnapshot {
 			commitsByWeek: []
 		},
 		github: {
+			issueList: null,
 			state: 'absent',
 			fetchedAt: null,
 			isPrivate: null,

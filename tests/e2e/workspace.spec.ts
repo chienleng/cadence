@@ -1,6 +1,16 @@
 import { test, expect } from '@playwright/test';
 import { expectPageFits, selectRecord } from './helpers';
 
+test('project issue lists distinguish confirmed empty from unavailable', async ({ page }) => {
+	await page.goto('/projects/harbour');
+	const issues = page.getByRole('region', { name: 'Open issues' });
+	await expect(issues).toContainText('No open issues');
+	await expect(issues).toContainText('pnpm refresh');
+	await page.goto('/projects/failed');
+	await expect(issues).toContainText('Issue list unavailable');
+	await expect(issues).not.toContainText('No open issues');
+});
+
 test('homepage is the root route and opens the project dashboard', async ({ page }) => {
 	await page.goto('/');
 	await expect(page.getByRole('heading', { name: /See every project clearly/ })).toBeVisible();

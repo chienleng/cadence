@@ -63,7 +63,11 @@ Local Git state is inspected when the page loads. Ahead/behind compares locally 
 refs: Cadence never fetches them or checks whether they match the live remote. An unavailable
 comparison is not evidence that the repository is in sync.
 
-GitHub counts come from `pnpm refresh`. Data older than 24 hours, or with an unusable timestamp,
+Project details include an **Open issues** list with issue numbers, titles, update times and
+links to GitHub, ordered by recent activity. An empty list means the last refresh found no open
+issues; an unavailable list needs a successful refresh, including when upgrading an older cache.
+
+GitHub counts and issue lists come from `pnpm refresh`. Data older than 24 hours, or with an unusable timestamp,
 is marked stale. A failed or missing response stays unknown rather than becoming zero. Summary
 counts include coverage so you can see when a total is partial.
 
@@ -77,7 +81,7 @@ dormant or archived. A judgment counts only while the file text matches what was
 an edit it reads as outdated until the next refresh. See
 [TypeSafe judgments](commands.md#typesafe-judgments).
 
-Run `pnpm refresh` and reload to update GitHub counts. `pnpm refresh --local-only` replaces the
-cache without GitHub data, so it removes previously cached GitHub counts from the dashboard.
+Run `pnpm refresh` and reload to update GitHub counts and issue lists. `pnpm refresh --local-only` replaces the
+cache without GitHub data, so it removes previously cached GitHub counts and lists from the dashboard.
 See [refresh commands](commands.md#refresh-repository-state) and the
 [data reference](data-contract.md#cached-github-data) for details.

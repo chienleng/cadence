@@ -5,6 +5,7 @@
 	import { Select } from '@chienleng/stratum-ui/forms';
 	import { dashboardHref, documentHref, recordHref } from '$lib/workspace/navigation';
 	import GithubStatus from './GithubStatus.svelte';
+	import ProjectIssues from './ProjectIssues.svelte';
 	import {
 		gitBranchLabel,
 		githubDetail,
@@ -261,6 +262,12 @@
 				{/if}
 			</CardContent>
 		</Card>
+
+		<ProjectIssues
+			github={data.project.github}
+			demo={backHref.startsWith('/demo')}
+			archived={data.project.lifecycle === 'archived'}
+		/>
 
 		<Card>
 			<CardHeader>

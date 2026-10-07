@@ -43,12 +43,13 @@ For a different data location, [set `CADENCE_DATA_ROOT`](docs/commands.md#choose
 
 - Search and filter projects, then switch between grouped cards and a comparison table.
 - Check status, working-tree changes, recent commits and cached GitHub issue/PR counts.
+- Read the project's open GitHub issues and follow each issue to GitHub.
 - Open status, plans, decisions and notes alongside source documentation.
 - Share a local record link or return to the dashboard with your filters intact.
 - Use `pnpm context` to give your coding agent the current status and related records.
 
 Local Git inspection reads the refs already on your machine; Cadence never fetches them.
-GitHub counts come from a separate `pnpm refresh` and show when they are stale or unavailable.
+GitHub counts and issue lists come from a separate `pnpm refresh` and show when they are stale or unavailable.
 [How the dashboard works](docs/product.md) explains these states.
 
 ## Keep your records safe
